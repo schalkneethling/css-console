@@ -6,11 +6,13 @@ import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 /**
- * Boundary enforcement tests.
+ * Boundary enforcement tests for the compiler-enforced dimensions.
  *
- * The compiler is the only mechanism that enforces the workspace boundaries,
- * so these tests prove each boundary by compiling a deliberately violating
- * file and asserting that the build fails with the expected diagnostic. Each
+ * The compiler enforces the global and import-direction boundaries, and the
+ * builtin half of the package boundary; the package half is lint-enforced and
+ * proven in imports.test.ts. These tests prove each compiler-enforced boundary
+ * by compiling a deliberately violating file and asserting that the build
+ * fails with the expected diagnostic. Each
  * case copies the source tree and the base configuration into a temporary
  * directory, injects one violation, runs `tsc --build` against the affected
  * project, and cleans up. The copies keep the working tree untouched and keep
