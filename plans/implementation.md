@@ -67,7 +67,7 @@ Sass reached this point long ago, and the shape of its answer is instructive. Sa
 
 ### 2.2 The scope principle
 
-A value is worth probing when it cannot be known from the source text alone, only after the browser has parsed and applied the CSS. That criterion covers custom function return values, `calc()` against relative units and percentages, which bound a `clamp()` landed on, `color-mix()` and relative color syntax, `light-dark()`, container units resolving against whichever container won, custom properties arriving through an inheritance chain, generated content sizing, `random()`, and `if()` branches once they ship.
+A value is worth probing when it cannot be known from the source text alone, only after the browser has parsed and applied the CSS. That criterion covers the values custom function calls resolve to, `calc()` against relative units and percentages, which bound a `clamp()` landed on, `color-mix()` and relative color syntax, `light-dark()`, container units resolving against whichever container won, custom properties arriving through an inheritance chain, generated content sizing, `random()`, and `if()` branches once they ship.
 
 The criterion is a center of gravity rather than a restriction. A deterministic `calc(2px + 3px)` is not refused. The criterion decides what the demonstration leads with, what the documentation teaches first, and which capability gaps are worth closing.
 
