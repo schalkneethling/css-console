@@ -1,5 +1,7 @@
 # 0013 — Parser selection: PostCSS
 
+This record captures the CSSC-002 spike outcome: PostCSS parses the project's CSS, because it alone preserves trailing comments as first-class nodes in the decisive omitted-semicolon case.
+
 ## Status
 
 Accepted, 2026-07-26.
