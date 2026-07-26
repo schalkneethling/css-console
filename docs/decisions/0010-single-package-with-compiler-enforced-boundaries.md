@@ -22,7 +22,7 @@ The boundary has three dimensions. The compiler enforces the first two entirely 
 
 `ES2025` is chosen for a stated reason: `Set` methods such as `union()`, `intersection()`, and `difference()` map directly onto guard candidate work, and iterator helpers simplify index traversal. Because `lib` asserts availability without providing it, the setting commits the project to a floor of Node 24 and 2025-era browser baselines, recorded alongside the setting and revisited together with it. A development-only tool can hold a higher floor than a shipping library, because the constraint is the environment a developer debugs in.
 
-Typecheck is `tsc --build` at the root, walking the reference graph in dependency order and failing on any violation in any dimension. A flat project would silently drop the import-direction guarantee.
+Typecheck is `tsc --build` at the root, walking the reference graph in dependency order and failing on any violation the compiler can see: a foreign global, a wrong-direction import, or a builtin import. A third-party package import under `src/` typechecks, and only the lint rule fails it, so the merge gate is `vp check` rather than typecheck alone. A flat project would silently drop the import-direction guarantee.
 
 ## Alternatives considered
 
