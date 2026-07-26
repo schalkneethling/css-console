@@ -1,0 +1,4 @@
+{
+  "plugins": ["eslint", "unicorn", "oxc", "import", "node", "promise", "vitest", "jsdoc"],
+  "rules": {}
+}

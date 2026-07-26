@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "integrations": [
+    "editorconfig",
+    "oxlint",
+    "oxlint-eslint",
+    "oxlint-unicorn",
+    "oxlint-oxc",
+    "oxlint-import",
+    "oxlint-node",
+    "oxlint-promise",
+    "oxlint-vitest",
+    "oxlint-jsdoc",
+    "oxfmt",
+    "stylelint",
+    "stylelint-standard",
+    "stylelint-order",
+    "stylelint-baseline",
+    "css-property-type-validator"
+  ],
+  "files": [".editorconfig", "oxlint.json", ".stylelintrc.json"],
+  "managedFiles": [
+    {
+      "path": ".editorconfig",
+      "hash": "3a15156"
+    },
+    {
+      "path": "oxlint.json",
+      "hash": "d3479b1"
+    },
+    {
+      "path": ".stylelintrc.json",
+      "hash": "0f0db2e"
+    }
+  ],
+  "aiArtifacts": [
+    {
+      "type": "skill",
+      "name": "more-secure-dependabot-config",
+      "source": "skills/more-secure-dependabot-config",
+      "path": ".agents/skills/more-secure-dependabot-config",
+      "hash": "442567e"
+    },
+    {
+      "type": "skill",
+      "name": "npm-publishing-best-practices",
+      "source": "skills/npm-publishing-best-practices",
+      "path": ".agents/skills/npm-publishing-best-practices",
+      "hash": "6c59bc0"
+    },
+    {
+      "type": "skill",
+      "name": "npm-trusted-publishing-github-workflow",
+      "source": "skills/npm-trusted-publishing-github-workflow",
+      "path": ".agents/skills/npm-trusted-publishing-github-workflow",
+      "hash": "3c80ede"
+    }
+  ],
+  "profile": "modern"
+}

@@ -1,0 +1,68 @@
+{
+  "name": "@schalkneethling/css-console",
+  "version": "0.0.0",
+  "description": "Development-only CSS value probes: turn source-local CSS comments into live, element-specific reports of authored and browser-resolved values.",
+  "keywords": [
+    "css",
+    "cssom",
+    "debugging",
+    "devtools"
+  ],
+  "homepage": "https://github.com/schalkneethling/css-console#readme",
+  "bugs": {
+    "url": "https://github.com/schalkneethling/css-console/issues"
+  },
+  "license": "MIT",
+  "author": "Schalk Neethling",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schalkneethling/css-console.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build",
+    "prepare": "vp config",
+    "lint": "oxlint . && stylelint \"**/*.{css,scss}\" --allow-empty-input",
+    "lint:fix": "oxlint --fix . && stylelint \"**/*.{css,scss}\" --fix --allow-empty-input",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "quality": "pnpm lint && pnpm format:check"
+  },
+  "devDependencies": {
+    "@schalkneethling/stylelint-plugin-css-property-type-validator": "0.1.0-beta.1",
+    "@types/node": "^26.1.1",
+    "bumpp": "^11.1.0",
+    "oxfmt": "^0.60.0",
+    "oxlint": "^1.75.0",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-order": "^8.1.1",
+    "stylelint-plugin-use-baseline": "^1.4.4",
+    "typescript": "^7.0.2",
+    "vite-plus": "^0.2.4"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.2.5"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "10.33.2",
+      "onFail": "download"
+    }
+  }
+}
