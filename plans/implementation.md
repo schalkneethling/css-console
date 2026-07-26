@@ -208,7 +208,7 @@ type ValueGuard = {
 
 `competing-declaration` requires shorthand and logical expansion to be reliable, because a guard that misses `margin` beating `margin-left`, or `width` beating `inline-size`, fails on ordinary CSS. It requires nothing beyond a boolean answer, so no counts, locations, or ranking are produced.
 
-`unresolved-variable` is checked directly, and the check accounts for fallbacks. For an authored value referencing `var(--x)` with no fallback, an empty result from `getPropertyValue("--x")` on that element means the reference fails and the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration. A reference written `var(--x, fallback)` remains valid when `--x` is unset, because the fallback supplies the substitution value, so an empty lookup alone must not fire the reason. CSSC-021 documents and tests the exact semantics the specification requires.
+`unresolved-variable` is checked directly, and the check accounts for fallbacks. For an authored value referencing `var(--x)` with no fallback, an empty result from `getPropertyValue("--x")` on that element means the reference fails and the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration. A fallback changes the answer only when it saves the declaration: `color: var(--x, red)` with `--x` unset substitutes `red` and stays valid, while `color: var(--x, 10px)` is invalid at computed-value time despite its fallback. Clearing the reason therefore requires verifying that the substituted fallback yields a valid value for the destination property, for example with `CSS.supports()` against the value after substitution, rather than observing that a fallback exists. CSSC-021 documents and tests the exact semantics the specification requires, including nested fallback chains.
 
 ### 3.5 Record contracts
 
@@ -475,7 +475,7 @@ A development-only tool can hold a higher floor than a shipping library, because
 
 This rule has one consequence worth stating in advance: probe identifier hashing cannot use `node:crypto`, and `crypto.subtle` is both asynchronous and unavailable in core under `types: []`. Core therefore uses a small pure JavaScript hash with a documented algorithm.
 
-`typecheck` is `tsc --build` at the root, walking the graph in dependency order and failing on any violation in any dimension.
+`typecheck` is `tsc --build` at the root, walking the graph in dependency order and failing on any violation the compiler can see: a foreign global, a wrong-direction import, or a builtin import. A third-party package import under `src/` typechecks, and only the lint rule fails it, so the merge gate is `vp check` rather than typecheck alone.
 
 Lint-based import restrictions carry the package half of the third dimension and nothing else. Two rules hold regardless of linter: scope restrictions by path glob rather than by package, so the configuration survives a later split unchanged; and never configure a rule the linter silently ignores, since a dead rule reads as enforcement during review and provides none. The second rule is enforced executably: a unit test runs the linter with the project configuration against a violating fixture and fails when the rule does not fire.
 
@@ -662,12 +662,12 @@ Where a specification provides examples, those examples are used directly, and w
 
 ### 8.1 Lanes
 
-| Lane             | Environment                         | Covers                                                                                          | Does not cover                 |
-| ---------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------ |
-| Unit             | Vitest in Node                      | Grammar, association, nesting, call-site resolution, expansion, compilation, types, diagnostics | Browser CSS behavior           |
-| Browser contract | Vitest Browser Mode with Playwright | Matching, `getComputedStyle()`, custom functions, pseudo-elements, guard, read-only guarantee   | Full consumer setup            |
-| End-to-end       | Playwright against playground       | Real stylesheet loading, public API, console output, error cases                                | Exhaustive parser combinations |
-| Static           | `tsc --build`, package checks       | API integrity, global isolation, import direction, forbidden package imports                    | Runtime behavior               |
+| Lane             | Environment                           | Covers                                                                                          | Does not cover                 |
+| ---------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------ |
+| Unit             | Vitest in Node                        | Grammar, association, nesting, call-site resolution, expansion, compilation, types, diagnostics | Browser CSS behavior           |
+| Browser contract | Vitest Browser Mode with Playwright   | Matching, `getComputedStyle()`, custom functions, pseudo-elements, guard, read-only guarantee   | Full consumer setup            |
+| End-to-end       | Playwright against playground         | Real stylesheet loading, public API, console output, error cases                                | Exhaustive parser combinations |
+| Static           | `tsc --build`, Oxlint, package checks | API integrity, global isolation, import direction, forbidden package imports                    | Runtime behavior               |
 
 Browser behavior runs in real browsers through [Vitest Browser Mode](https://main.vitest.dev/guide/browser/).
 
@@ -727,7 +727,7 @@ A phase is done when its exit demonstration and the full merge gate pass from a 
 
 ## Phase 0 — foundation, decisions, and executable contracts
 
-Exit criteria: the parser decision is made and recorded; the package installs, builds, and runs Node and browser smoke tests; all three boundary dimensions are compiler-enforced and proven by failing-compilation tests; public types and fixture conventions exist; CI runs the merge gate.
+Exit criteria: the parser decision is made and recorded; the package installs, builds, and runs Node and browser smoke tests; the compiler-enforced boundaries are proven by failing-compilation tests and the lint-enforced package boundary is proven by a test that runs the linter with the project configuration; public types and fixture conventions exist; CI runs the merge gate.
 
 ### CSSC-001 — Record architecture decisions
 
@@ -915,7 +915,7 @@ Labels: `phase-2`, `browser`, `guard`
 
 **Review question**: does the guard fire when and only when something competes?
 
-Red cases: nothing else declares the property, giving `contested: false` with no reasons; a competing rule gives `competing-declaration`; a shorthand competing with an annotated longhand, specifically `margin` against `margin-left`; a physical property competing with an annotated logical one, `width` against `inline-size`, in both horizontal and vertical writing modes; `all` competing with everything; an inline style value; an `!important` flag; a running transition or animation on the property; an authored value referencing an unset custom property; a `var()` reference with a valid fallback and an unset variable, tested for whichever behavior the specification requires; competitors in inactive conditions and excluded sources do not count.
+Red cases: nothing else declares the property, giving `contested: false` with no reasons; a competing rule gives `competing-declaration`; a shorthand competing with an annotated longhand, specifically `margin` against `margin-left`; a physical property competing with an annotated logical one, `width` against `inline-size`, in both horizontal and vertical writing modes; `all` competing with everything; an inline style value; an `!important` flag; a running transition or animation on the property; an authored value referencing an unset custom property; a `var()` reference with a valid fallback and an unset variable, which must not fire the reason; a `var()` reference whose fallback is invalid for the destination property and an unset variable, such as `color: var(--x, 10px)`, which must fire the reason; competitors in inactive conditions and excluded sources do not count.
 
 Acceptance: no specificity, layer, or order comparison is performed anywhere.
 
