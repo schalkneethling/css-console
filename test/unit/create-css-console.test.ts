@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { createCSSConsole } from "../src/index.ts";
+import { createCSSConsole } from "../../src/index";
 
 test("createCSSConsole returns an instance with the planned API surface", () => {
   const cssConsole = createCSSConsole({ sources: "document" });

@@ -1,0 +1,8 @@
+{
+  "extends": "../../../../src/core/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../../../.tsbuild/cases/core-imports-browser",
+    "tsBuildInfoFile": "../../../../.tsbuild/cases/core-imports-browser/tsconfig.tsbuildinfo"
+  },
+  "include": ["../../../../src/core", "./violation.ts"]
+}

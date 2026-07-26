@@ -1,0 +1,8 @@
+{
+  "extends": "../../../../src/core/tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true
+  },
+  "include": ["../../../../src/core", "./violation.ts"]
+}
