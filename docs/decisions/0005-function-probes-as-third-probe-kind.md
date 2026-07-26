@@ -20,7 +20,7 @@ Call-site resolution follows three distinct rules:
 - A call passed as an argument to another call records the outer call. In `--space(--double(2))`, the call site for a probe on `--space` is the outer call, with `--double(2)` captured verbatim as the authored argument.
 - A call inside another function body is a definition reference, not a call site, because the inner call has no independently observable value. Definition references are recorded and reported separately.
 
-Each call site records the containing rule's resolved selector, the declaration property, the arguments as authored, and `isolated`: whether the call constitutes the entire declaration value. When `isolated` is false, the resolved value is the property's value rather than the function's isolated return value, and the record says so rather than implying a return value the tool cannot isolate.
+Each call site records the containing rule's resolved selector, the declaration property, the arguments as authored, and `isolated`: whether the call constitutes the entire declaration value. Every reported value is the property's resolved value, never the function's return value, because `getComputedStyle()` exposes a property only after the destination property's own value resolution has applied: a returned percentage resolves against the property's context, and a relative length resolves to pixels. `isolated` therefore narrows the claim without changing its kind. When `isolated` is true, no other authored expression contributes to the resolved value; when it is false, the surrounding expression contributes as well. The record and the rendering label values as resolved property values in both cases, rather than implying a return value the tool cannot observe.
 
 A property list on a function probe is rejected, because the call sites determine the properties. A function with zero call sites is reported rather than silent, because that is itself a useful debugging answer.
 
@@ -35,4 +35,4 @@ Isolating a nested call's return value was rejected. It would require synthesizi
 - Call-site resolution is the differentiating capability. CSSC-013 implements it, its checkpoint halts for review, and its review question is whether resolution finds every call and no others.
 - The record contract gains `FunctionRecord`, `CallSite`, and the `isolated` honesty field.
 - Function evaluation requires a browser with native `@function` support. The runtime feature-detects and reports a reserved-pending-support diagnostic elsewhere, and Chromium-only availability is not a blocker for a development-only tool.
-- The console adapter renders one group per function and one table per call site, with non-isolated calls visibly marked as property values.
+- The console adapter renders one group per function and one table per call site. Values are labeled resolved property values throughout, and non-isolated calls are additionally marked as including surrounding expression contributions.

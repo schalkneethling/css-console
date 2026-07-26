@@ -2,7 +2,7 @@
 
 Status: proposed
 Planning date: 2026-07-24
-Revision date: 2026-07-25 (revision 5)
+Revision date: 2026-07-26 (revision 6)
 Package name: `@schalkneethling/css-console`
 
 ## Revision history
@@ -10,6 +10,8 @@ Package name: `@schalkneethling/css-console`
 **Revision 4** changed the thesis. The tool exists because CSS is becoming computational and has no way to print a value, not because resolved values in general need explaining. Cascade work collapsed from a feature to a guard, function probes became a third probe kind, and the deferred list split three ways.
 
 **Revision 5 keeps that thesis and corrects the plan around it.** The changes are process rules, two corrected specifications, and two decisions raised rather than assumed.
+
+**Revision 6 applies corrections from the Phase 0 review.** Three specifications are corrected. Function-probe values are always resolved property values, because `getComputedStyle()` applies the destination property's value resolution even when the call is the entire declaration value, so `isolated` narrows the contribution claim rather than promising a return value. The `unresolved-variable` guard accounts for `var()` fallbacks, because an empty custom-property lookup does not invalidate a declaration whose reference carries a valid fallback. The package half of the import boundary is enforced by a lint rule proven alive by a test, because the compiler accepts any import whose module specifier resolves; the builtin half remains compiler-enforced through `types: []`.
 
 ### Decisions raised for Phase 0
 
@@ -206,7 +208,7 @@ type ValueGuard = {
 
 `competing-declaration` requires shorthand and logical expansion to be reliable, because a guard that misses `margin` beating `margin-left`, or `width` beating `inline-size`, fails on ordinary CSS. It requires nothing beyond a boolean answer, so no counts, locations, or ranking are produced.
 
-`unresolved-variable` is checked directly. For an authored value referencing `var(--x)`, an empty result from `getPropertyValue("--x")` on that element means the reference fails and the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration.
+`unresolved-variable` is checked directly, and the check accounts for fallbacks. For an authored value referencing `var(--x)` with no fallback, an empty result from `getPropertyValue("--x")` on that element means the reference fails and the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration. A reference written `var(--x, fallback)` remains valid when `--x` is unset, because the fallback supplies the substitution value, so an empty lookup alone must not fire the reason. CSSC-021 documents and tests the exact semantics the specification requires.
 
 ### 3.5 Record contracts
 
@@ -239,9 +241,11 @@ type CallSite = {
   property: string;
   arguments: readonly string[];
   /**
-   * True when the call is the entire declaration value. When false the
-   * resolved value includes the surrounding expression, so it is the
-   * property's value rather than the function's isolated return value.
+   * True when the call is the entire declaration value, so no other
+   * authored expression contributes to the resolved value. The resolved
+   * value is the property's resolved value in both cases, never the
+   * function's return value, because the destination property's own
+   * value resolution applies before the tool can observe anything.
    */
   isolated: boolean;
   selector: string;
@@ -266,7 +270,7 @@ type FunctionRecord<TTarget> = {
 type ProbeRecord<TTarget> = ValueRecord<TTarget> | FunctionRecord<TTarget>;
 ```
 
-`isolated` is the honesty field. A declaration reading `padding: --space(4)` yields the function's return value. A declaration reading `padding: calc(--space(4) + 2px)` does not, and the record says so rather than implying a return value the tool cannot isolate.
+`isolated` is the honesty field, and its claim is about contribution rather than about return values. Every reported value is the property's resolved value: a function returning a percentage or a relative length has that result transformed by the destination property's value resolution before `getComputedStyle()` exposes it, so no reported value is a return value, even for an isolated call. A declaration reading `padding: --space(4)` resolves a value the call alone produced. A declaration reading `padding: calc(--space(4) + 2px)` does not, and the record says so rather than implying an isolation the tool cannot observe.
 
 Isolating a nested call would require synthesizing a probe element carrying the original element's custom property context, which conflicts with the read-only guarantee. css-expect isolates properly, off-page, and is the right tool for that question.
 
@@ -440,7 +444,7 @@ css-console/
 
 ### 5.2 Boundary enforcement
 
-The boundary has three dimensions. The compiler enforces all three, so no linter participates in the guarantee.
+The boundary has three dimensions. The compiler enforces the first two entirely, and the builtin half of the third; the package half of the third is enforced by a lint rule that a test proves alive, because the compiler accepts any import whose module specifier resolves.
 
 **Which globals exist** is controlled by `lib` and `types`:
 
@@ -467,13 +471,13 @@ A development-only tool can hold a higher floor than a shipping library, because
 
 **Which files can import which** is controlled by project references. A `composite` project reaches only its own `include` plus the projects it references, so core referencing nothing cannot import from `browser`, and `adapter` referencing only core cannot grow scanner logic.
 
-**Which packages may be imported at all.** Nothing under `src/` imports a Node package or a `node:` builtin. Core is additionally protected by `types: []`, which removes Node's ambient declarations, but `browser` and `adapter` carry DOM types and would otherwise accept a `node:fs` import without complaint. Build scripts and tests are exempt.
+**Which packages may be imported at all.** Nothing under `src/` imports a Node package or a `node:` builtin. Build scripts and tests are exempt. The rule splits into two mechanisms. Builtin imports fail compilation in every project that pins `types: []`, because the ambient module declarations from `@types/node` never enter the program, so `import "node:fs"` cannot resolve; `browser` and `adapter` therefore pin `types: []` alongside core, taking the DOM from `lib` rather than from ambient packages. Third-party package imports compile whenever the specifier resolves, which the compiler cannot be configured to refuse, so an Oxlint `no-restricted-imports` pattern scoped to `src/` rejects every non-relative specifier outside a named allowlist, and a unit test asserts the configured rule fires against a violation.
 
 This rule has one consequence worth stating in advance: probe identifier hashing cannot use `node:crypto`, and `crypto.subtle` is both asynchronous and unavailable in core under `types: []`. Core therefore uses a small pure JavaScript hash with a documented algorithm.
 
 `typecheck` is `tsc --build` at the root, walking the graph in dependency order and failing on any violation in any dimension.
 
-Lint-based import restrictions are useful reinforcement but are not a mechanism here. Two rules hold regardless of linter: scope restrictions by path glob rather than by package, so the configuration survives a later split unchanged; and never configure a rule the linter silently ignores, since a dead rule reads as enforcement during review and provides none.
+Lint-based import restrictions carry the package half of the third dimension and nothing else. Two rules hold regardless of linter: scope restrictions by path glob rather than by package, so the configuration survives a later split unchanged; and never configure a rule the linter silently ignores, since a dead rule reads as enforcement during review and provides none. The second rule is enforced executably: a unit test runs the linter with the project configuration against a violating fixture and fails when the rule does not fire.
 
 ### 5.3 Parser selection
 
@@ -903,7 +907,7 @@ Red cases: an ordinary property; `calc()` resolving to pixels; `clamp()` at and 
 
 Labels: `phase-2`, `browser`, `functions`
 
-Red cases: a call site with one matched element; a call site with many matched elements producing one record each; multiple call sites for one function; an isolated call reporting the function's return value; a nested call reporting the property value with `isolated: false`; arguments preserved as authored; a function whose result varies per element through a custom property argument; a browser without `@function` support producing a reserved-pending-support diagnostic rather than an error.
+Red cases: a call site with one matched element; a call site with many matched elements producing one record each; multiple call sites for one function; an isolated call reporting the resolved value the call alone produced, including a case where the destination property transforms the result, such as a returned percentage resolving to pixels; a nested call reporting the property value with `isolated: false`; arguments preserved as authored; a function whose result varies per element through a custom property argument; a browser without `@function` support producing a reserved-pending-support diagnostic rather than an error.
 
 ### CSSC-021 — Evaluate the contested guard
 
@@ -997,7 +1001,7 @@ Acceptance: the table is legible at fifty rows; no information exists only in st
 
 Labels: `phase-4`, `console`, `ux`, `functions`
 
-Red: a group per function naming the definition location; one table per call site showing arguments, property, and per-element resolved value; a non-isolated call visibly marked as a property value rather than a return value; multiple call sites rendering as sibling groups; a function with no call sites rendering an informational line; definition references listed separately from call sites.
+Red: a group per function naming the definition location; one table per call site showing arguments, property, and per-element resolved value; values labeled resolved property values throughout, with a non-isolated call additionally marked as including surrounding expression contributions; multiple call sites rendering as sibling groups; a function with no call sites rendering an informational line; definition references listed separately from call sites.
 
 ### CSSC-032 — Render diagnostics and the handoff
 
@@ -1029,7 +1033,7 @@ Labels: `phase-4`, `docs`
 
 Two deliverables, both held to the writing standards.
 
-**Usage documentation**: installation, the probe kinds, API, examples, diagnostics, and limitations. It explains the scope principle; what the guard does and does not claim; why the levels come from the Console API and carry no assertion semantics; the `display: none` fallback; the element retention hazard; the difference between reserved-pending-support, deferred, and not-a-target; that a non-isolated call reports a property value rather than a function return value, naming css-expect as the tool for isolated assertions; and that annotations in production CSS are stripped by most minifiers, with the exceptions named.
+**Usage documentation**: installation, the probe kinds, API, examples, diagnostics, and limitations. It explains the scope principle; what the guard does and does not claim; why the levels come from the Console API and carry no assertion semantics; the `display: none` fallback; the element retention hazard; the difference between reserved-pending-support, deferred, and not-a-target; that every reported value is a resolved property value rather than a function return value, with `isolated` narrowing only the contribution claim, naming css-expect as the tool for isolated assertions; and that annotations in production CSS are stripped by most minifiers, with the exceptions named.
 
 **Capability write-up** in `docs/capabilities.md`: what a page-scoped script can and cannot observe about computed CSS. It states the litmus test, enumerates the out-of-reach list with the reason each item is unreachable, and describes what an engine-level implementation could offer instead, most pointedly which branch inside a function body produced `result`. This is written to be useful to contributors and users regardless of whether any browser engineer reads it.
 
@@ -1204,7 +1208,7 @@ Annotating `background-color` demonstrates the scope principle directly: the sam
 | Parser drops or absorbs trailing comments              | CSSC-002 spike decides on evidence, including the omitted-semicolon case |
 | A value presented as though the annotation produced it | The guard, with the live element as remediation                          |
 | Guard missing shorthand or logical conflicts           | Bidirectional expansion, logical resolved per element                    |
-| Non-isolated function call read as a return value      | `isolated` on every call site; css-expect named for isolated assertion   |
+| Function-probe value read as a return value            | Values labeled resolved property values; css-expect named for isolation  |
 | Two calls in one declaration collapsed into one        | Each call is its own call site, with a dedicated fixture                 |
 | Nesting transform destroying annotation association    | Manual resolution; source locations asserted unchanged                   |
 | Console flooded by a dependency's annotations          | `exclude` patterns in the API from the first release                     |
