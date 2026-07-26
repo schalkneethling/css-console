@@ -1,0 +1,17 @@
+/* css-console: log label="cards" */
+.card {
+  color: var(--card-color);
+  inline-size: calc(50cqi - 1rem);
+}
+
+.badge {
+  rotate: 3deg; /* css-console: log */
+}
+
+.grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* css-console: log */
+}
+
+.note {
+  color: red; /* css-console: log */
+}
