@@ -16,3 +16,4 @@ Each record captures context, decision, alternatives, and consequences for one a
 - [0010: Single package with compiler-enforced boundaries](0010-single-package-compiler-boundaries.md)
 - [0011: Type aliases rather than interfaces for public contracts](0011-type-not-interface.md)
 - [0012: Relationship to css-expect](0012-relationship-to-css-expect.md)
+- [0013: Parser selection: PostCSS](0013-parser-selection.md)
