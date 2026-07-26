@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": [],
+    "outDir": "../../.tsbuild/browser"
+  },
+  "include": ["."],
+  "references": [{ "path": "../core" }]
+}

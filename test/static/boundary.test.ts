@@ -68,19 +68,19 @@ const violationCases: ViolationCase[] = [
     title: "core importing from browser fails typecheck",
     config: "test/static/cases/core-imports-browser/tsconfig.json",
     mode: "build",
-    pattern: /error TS\d+/,
+    pattern: /error TS6307/,
   },
   {
     title: "adapter importing from browser fails typecheck",
     config: "test/static/cases/adapter-imports-browser/tsconfig.json",
     mode: "build",
-    pattern: /error TS\d+/,
+    pattern: /error TS6307/,
   },
   {
     title: "a node: builtin import under src/ fails typecheck",
     config: "test/static/cases/node-builtin-in-browser/tsconfig.json",
     mode: "project",
-    pattern: /Cannot find module 'node:fs'/,
+    pattern: /Cannot find name 'node:fs'/,
   },
 ];
 

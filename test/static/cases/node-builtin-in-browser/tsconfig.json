@@ -2,7 +2,10 @@
   "extends": "../../../../src/browser/tsconfig.json",
   "compilerOptions": {
     "composite": false,
-    "noEmit": true
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "rootDir": "../../../../"
   },
   "include": ["../../../../src/browser", "./violation.ts"]
 }

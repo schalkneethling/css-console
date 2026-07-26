@@ -2,7 +2,8 @@
   "extends": "../../../../src/adapter/tsconfig.json",
   "compilerOptions": {
     "outDir": "../../../../.tsbuild/cases/adapter-imports-browser",
-    "tsBuildInfoFile": "../../../../.tsbuild/cases/adapter-imports-browser/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": "../../../../.tsbuild/cases/adapter-imports-browser/tsconfig.tsbuildinfo",
+    "rootDir": "../../../../"
   },
   "include": ["../../../../src/adapter", "./violation.ts"]
 }

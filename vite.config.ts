@@ -1,3 +1,4 @@
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -9,8 +10,10 @@ export default defineConfig({
       tsgo: true,
     },
     exports: true,
+    tsconfig: "tsconfig.build.json",
   },
   lint: {
+    ignorePatterns: ["dist/**", ".tsbuild/**", "test/static/cases/**"],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -32,7 +35,7 @@ export default defineConfig({
           include: ["test/browser/**/*.test.ts"],
           browser: {
             enabled: true,
-            provider: "playwright",
+            provider: playwright(),
             headless: true,
             instances: [{ browser: "chromium" }],
           },

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2025"],
+    "types": [],
+    "outDir": "../../.tsbuild/core"
+  },
+  "include": ["."],
+  "references": []
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": [],
+    "outDir": "../.tsbuild/facade"
+  },
+  "include": ["index.ts"],
+  "references": [{ "path": "./adapter" }, { "path": "./browser" }, { "path": "./core" }]
+}

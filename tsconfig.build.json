@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": [],
+    "emitDeclarationOnly": false
+  },
+  "include": ["src"]
+}

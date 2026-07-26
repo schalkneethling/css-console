@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "outDir": "./.tsbuild/test"
+  },
+  "include": ["test"],
+  "references": [
+    { "path": "src" },
+    { "path": "src/adapter" },
+    { "path": "src/browser" },
+    { "path": "src/core" }
+  ]
+}

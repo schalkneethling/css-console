@@ -2,7 +2,10 @@
   "extends": "../../../../src/core/tsconfig.json",
   "compilerOptions": {
     "composite": false,
-    "noEmit": true
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "rootDir": "../../../../"
   },
   "include": ["../../../../src/core", "./violation.ts"]
 }
