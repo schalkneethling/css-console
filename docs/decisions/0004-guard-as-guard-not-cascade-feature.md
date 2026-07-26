@@ -30,7 +30,7 @@ type ValueGuard = {
 };
 ```
 
-`competing-declaration` requires shorthand and logical expansion to be reliable, because a guard that misses `margin` beating `margin-left`, or `width` beating `inline-size`, fails on ordinary CSS. It requires nothing beyond a boolean answer, so no counts, locations, or ranking are produced. `unresolved-variable` is checked directly: for an authored value referencing `var(--x)`, an empty result from `getPropertyValue("--x")` on that element means the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration.
+`competing-declaration` requires shorthand and logical expansion to be reliable, because a guard that misses `margin` beating `margin-left`, or `width` beating `inline-size`, fails on ordinary CSS. It requires nothing beyond a boolean answer, so no counts, locations, or ranking are produced. `unresolved-variable` is checked directly, and the check accounts for fallbacks: for an authored value referencing `var(--x)` with no fallback, an empty result from `getPropertyValue("--x")` on that element means the reference fails and the declaration is invalid at computed-value time, so the value arrived by inheritance or from the initial value rather than from this declaration. A reference written `var(--x, fallback)` remains valid when `--x` is unset, because the fallback supplies the substitution value, so an empty lookup alone must not fire the reason. The guard therefore parses each `var()` reference for a fallback before treating an empty lookup as a failure, and CSSC-021 documents and tests the exact semantics the specification requires.
 
 ## Alternatives considered
 
