@@ -170,6 +170,28 @@ const cases: readonly MergeCase[] = [
       "}\n\n" +
       "export {};\n",
   },
+  {
+    name: "reopening the scan event with an interface is rejected",
+    file: "src/core/merge-scan-event.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface ScanEvent<TTarget> {\n" +
+      "    injectedByConsumer: TTarget;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the unsubscribe handle with an interface is rejected",
+    file: "src/core/merge-unsubscribe.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface Unsubscribe {\n" +
+      "    injectedByConsumer: number;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
 ];
 
 for (const mergeCase of cases) {
