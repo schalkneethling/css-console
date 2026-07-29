@@ -34,5 +34,4 @@ Files are numbered with a zero-padded four-digit prefix followed by a short slug
 | [0010](./0010-single-package-with-compiler-enforced-boundaries.md) | Single package with compiler-enforced boundaries           |
 | [0011](./0011-type-rather-than-interface.md)                       | `type` rather than `interface` for public contracts        |
 | [0012](./0012-relationship-to-css-expect.md)                       | Relationship to css-expect                                 |
-
-The parser selection, PostCSS or css-tree, is deliberately absent. It is decided by the CSSC-002 spike and will be recorded here when that spike concludes.
+| [0013](./0013-parser-selection-postcss.md)                         | Parser selection: PostCSS                                  |

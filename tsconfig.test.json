@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "./.tsbuild/test",
+    "paths": {
+      "@schalkneethling/css-console": ["./src/index.ts"]
+    }
+  },
+  "include": ["test", "vite.config.ts", "playwright.config.ts"],
+  "references": [{ "path": "./src/tsconfig.json" }]
+}

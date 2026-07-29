@@ -1,4 +1,47 @@
 {
   "plugins": ["eslint", "unicorn", "oxc", "import", "node", "promise", "vitest", "jsdoc"],
-  "rules": {}
+  "rules": {},
+  "overrides": [
+    {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["*", "*/**", "!./*", "!./**", "!../*", "!../**"],
+                "message": "Nothing under src/ imports a package or a node: builtin. Add an allowlist negation here only for a browser-safe dependency named in a decision record."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "*",
+                  "*/**",
+                  "!./*",
+                  "!./**",
+                  "!../*",
+                  "!../**",
+                  "!postcss",
+                  "!postcss/**"
+                ],
+                "message": "Nothing under src/core imports a package or a node: builtin, except postcss, the compiler dependency the parser selection record accepts."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }
