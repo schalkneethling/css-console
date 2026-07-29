@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
+import { spawnOutput } from "./spawn-output.ts";
+
 /**
  * Structural lint rule tests.
  *
@@ -49,14 +51,7 @@ function scanWorkspace(workspace: string): ScanResult {
 
   return {
     status: result.status,
-    output: [
-      result.stdout ?? "",
-      result.stderr ?? "",
-      result.error?.message ?? "",
-      result.signal ?? "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    output: spawnOutput(result),
   };
 }
 
@@ -107,6 +102,62 @@ const cases: readonly ScanCase[] = [
       "});\n",
     fires: null,
   },
+  {
+    name: "a generic interface under src/ fails the structural lint",
+    file: "src/core/generic-interface-violation.ts",
+    contents: "export interface Cache<TValue> {\n  value: TValue;\n}\n",
+    fires: "no-interface-in-src",
+  },
+  {
+    name: "an interface with an extends clause under src/ fails the structural lint",
+    file: "src/core/extends-interface-violation.ts",
+    contents:
+      "type Base = {\n  field: string;\n};\n\n" +
+      "export interface Extended extends Base {\n  extra: number;\n}\n",
+    fires: "no-interface-in-src",
+  },
+  {
+    name: "a namespace-qualified synchronous spawn without a timeout fails the structural lint",
+    file: "test/qualified-spawn-violation.ts",
+    contents:
+      'import childProcess from "node:child_process";\n\n' +
+      'export const result = childProcess.spawnSync("tsc", ["--build"], {\n' +
+      '  encoding: "utf8",\n' +
+      "});\n",
+    fires: "sync-spawn-requires-timeout",
+  },
+  {
+    name: "a timeout nested inside another option does not satisfy the structural lint",
+    file: "test/nested-timeout-violation.ts",
+    contents:
+      'import { execSync } from "node:child_process";\n\n' +
+      'export const result = execSync("tsc --build", {\n' +
+      '  env: { timeout: "30" },\n' +
+      "});\n",
+    fires: "sync-spawn-requires-timeout",
+  },
+  {
+    name: "a zero timeout does not satisfy the structural lint",
+    file: "test/zero-timeout-violation.ts",
+    contents:
+      'import { spawnSync } from "node:child_process";\n\n' +
+      'export const result = spawnSync("tsc", ["--build"], {\n' +
+      '  encoding: "utf8",\n' +
+      "  timeout: 0,\n" +
+      "});\n",
+    fires: "sync-spawn-requires-timeout",
+  },
+  {
+    name: "an undefined timeout does not satisfy the structural lint",
+    file: "test/undefined-timeout-violation.ts",
+    contents:
+      'import { spawnSync } from "node:child_process";\n\n' +
+      'export const result = spawnSync("tsc", ["--build"], {\n' +
+      '  encoding: "utf8",\n' +
+      "  timeout: undefined,\n" +
+      "});\n",
+    fires: "sync-spawn-requires-timeout",
+  },
 ];
 
 for (const scanCase of cases) {
@@ -139,5 +190,5 @@ test("the working tree passes the structural lint", { timeout: 30_000 }, () => {
     timeout: 30_000,
   });
 
-  expect(result.status, `${result.stdout ?? ""}\n${result.stderr ?? ""}`).toBe(0);
+  expect(result.status, spawnOutput(result)).toBe(0);
 });

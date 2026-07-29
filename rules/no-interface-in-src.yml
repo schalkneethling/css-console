@@ -3,6 +3,8 @@
 # recorded in docs/decisions/0011-type-rather-than-interface.md, and the
 # declaration-merging test suite proves the guarantee holds at the compiler
 # level. This rule catches the violation at lint time, before a build runs.
+# Matching the declaration node kind rather than a concrete pattern covers
+# every header form, including type parameters and extends clauses.
 id: no-interface-in-src
 language: TypeScript
 severity: error
@@ -13,4 +15,4 @@ note: >-
   The decision record 0011-type-rather-than-interface.md rejects `interface`
   under src/ because declaration merging can reopen a published contract.
 rule:
-  pattern: interface $NAME { $$$BODY }
+  kind: interface_declaration

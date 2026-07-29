@@ -16,8 +16,8 @@ ast-grep lints by structural pattern over the syntax tree, which is exactly the 
 
 The project adds `@ast-grep/cli` as a development dependency with a deliberately small, decision-anchored rule set under `rules/`:
 
-- `no-interface-in-src` fires on any `interface` declaration under `src/`, enforcing the type-rather-than-interface record at lint time. The declaration-merging test suite remains the proof that the guarantee holds at the compiler level; the rule catches the drift earlier.
-- `sync-spawn-requires-timeout` fires on `spawnSync`, `execSync`, or `execFileSync` calls whose options carry no `timeout` property.
+- `no-interface-in-src` fires on any `interface` declaration under `src/`, matched by node kind so that type parameters and extends clauses are covered, enforcing the type-rather-than-interface record at lint time. The declaration-merging test suite remains the proof that the guarantee holds at the compiler level; the rule catches the drift earlier.
+- `sync-spawn-requires-timeout` fires on `spawnSync`, `execSync`, or `execFileSync` calls, bare or qualified through a namespace, whose top-level options object carries no `timeout` pair with a real deadline. A `timeout` nested inside another option does not count, and neither do values that provide no deadline, such as zero and `undefined`.
 
 The scan runs as `vp run lint:structural`, as a staged hook on TypeScript files, and in the merge gate alongside `vp check`. Following the condition the single-package boundary record sets for lint-based enforcement, a test suite runs ast-grep with the project configuration against violating and compliant fixtures and fails when a configured rule stops firing, and one test asserts the working tree itself scans clean.
 

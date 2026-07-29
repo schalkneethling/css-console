@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
+import { spawnOutput } from "./spawn-output.ts";
+
 /**
  * Declaration merging rejection tests.
  *
@@ -53,14 +55,7 @@ function buildProject(workspace: string, projectPath: string): BuildResult {
 
   return {
     status: result.status,
-    output: [
-      result.stdout ?? "",
-      result.stderr ?? "",
-      result.error?.message ?? "",
-      result.signal ?? "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    output: spawnOutput(result),
   };
 }
 

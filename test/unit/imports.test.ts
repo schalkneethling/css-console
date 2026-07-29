@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
+import { spawnOutput } from "./spawn-output.ts";
+
 /**
  * Package-import boundary tests.
  *
@@ -49,14 +51,7 @@ function lintWorkspace(workspace: string): LintResult {
 
   return {
     status: result.status,
-    output: [
-      result.stdout ?? "",
-      result.stderr ?? "",
-      result.error?.message ?? "",
-      result.signal ?? "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    output: spawnOutput(result),
   };
 }
 
