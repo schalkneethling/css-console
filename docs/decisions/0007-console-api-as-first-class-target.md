@@ -34,5 +34,6 @@ Wrapping `console` to inject formatting globally was rejected outright by the ne
 ## Consequences
 
 - The adapter is testable by asserting method, group label, live element argument, and table data separately, never by snapshotting formatting as one string.
+- Rendering through the Console API makes results machine-observable in browser automation. A driver such as Playwright can read them through its ConsoleMessage API, which strengthens the testing story.
 - Structured records remain the primary output. The summary carries records, so a consumer never needs the console rendering at all.
 - Chrome custom formatters remain a separate spike under CSSC-122 rather than a v0 dependency.

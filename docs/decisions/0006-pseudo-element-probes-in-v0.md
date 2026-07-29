@@ -18,6 +18,8 @@ A selector branch carrying a pseudo-element is split: the originating element se
 
 Supported in v0: `::before`, `::after`, `::marker`, `::first-line`, `::first-letter`, `::placeholder`, `::selection`, and `::backdrop`. Deferred: `::part()` and `::slotted()`, which require shadow DOM, and any pseudo-element chain. Deferred pseudo-elements produce a deferred-feature diagnostic, and one unsupported branch does not erase valid branches.
 
+The `content` property can carry alternative text after a slash, as in `content: "❤️" / "A red heart emoji"`. The raw-source lane always sees the authored alternative text, because it parses the stylesheet text directly. On the live-DOM lane, `getComputedStyle(element, "::before").content` serializes the alternative text only in engines that implement the slash syntax for CSS Generated Content alternative text; engines without that support drop or reject it, so live-DOM observation is engine-dependent. v0 commits to reporting the authored alternative text from raw source and surfacing the computed serialization as-is from the live DOM, without normalizing the difference between the two lanes.
+
 A pseudo-element that generates no box still returns computed values, which is documented rather than treated as a defect.
 
 ## Alternatives considered
