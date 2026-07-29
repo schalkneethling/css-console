@@ -17,6 +17,31 @@
           }
         ]
       }
+    },
+    {
+      "files": ["src/core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "*",
+                  "*/**",
+                  "!./*",
+                  "!./**",
+                  "!../*",
+                  "!../**",
+                  "!postcss",
+                  "!postcss/**"
+                ],
+                "message": "Nothing under src/core imports a package or a node: builtin, except postcss, the compiler dependency the parser selection record accepts."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

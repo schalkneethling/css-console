@@ -19,7 +19,8 @@ import { expect, test } from "vite-plus/test";
  */
 
 const projectRoot = resolve(import.meta.dirname, "../..");
-const oxlintBin = join(projectRoot, "node_modules", ".bin", "oxlint");
+const binSuffix = process.platform === "win32" ? ".cmd" : "";
+const oxlintBin = join(projectRoot, "node_modules", ".bin", `oxlint${binSuffix}`);
 
 type LintResult = {
   status: number | null;
@@ -31,6 +32,7 @@ function createLintWorkspace(): string {
 
   cpSync(join(projectRoot, "oxlint.json"), join(workspace, "oxlint.json"));
   mkdirSync(join(workspace, "src", "core"), { recursive: true });
+  mkdirSync(join(workspace, "src", "browser"), { recursive: true });
   mkdirSync(join(workspace, "scripts"), { recursive: true });
 
   return workspace;
@@ -59,6 +61,18 @@ const cases: readonly LintCase[] = [
   {
     name: "a package import under src/ fails the lint rule",
     file: "src/core/package-violation.ts",
+    contents: 'import cssTree from "css-tree";\n\nexport const boundaryViolation = cssTree;\n',
+    fires: true,
+  },
+  {
+    name: "the postcss import passes the lint rule under src/core",
+    file: "src/core/parser-allowed.ts",
+    contents: 'import postcss from "postcss";\n\nexport const parser = postcss;\n',
+    fires: false,
+  },
+  {
+    name: "the postcss import fails the lint rule outside src/core",
+    file: "src/browser/parser-violation.ts",
     contents: 'import postcss from "postcss";\n\nexport const boundaryViolation = postcss;\n',
     fires: true,
   },

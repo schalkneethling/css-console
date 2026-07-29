@@ -20,7 +20,8 @@ import { expect, test } from "vite-plus/test";
  */
 
 const projectRoot = resolve(import.meta.dirname, "../..");
-const tscBin = join(projectRoot, "node_modules", ".bin", "tsc");
+const binSuffix = process.platform === "win32" ? ".cmd" : "";
+const tscBin = join(projectRoot, "node_modules", ".bin", `tsc${binSuffix}`);
 
 type BuildResult = {
   status: number | null;
