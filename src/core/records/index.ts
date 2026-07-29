@@ -172,8 +172,8 @@ export type ScanSummary<TTarget> = {
 /**
  * The subscriber event contract from the public API sketch: a scan emits a
  * record as it compiles or evaluates, a diagnostic as it detects a
- * condition, and a summary once the scan completes. Ordering semantics are
- * specified and tested under CSSC-023.
+ * condition, and a summary once the scan completes. Ordering semantics land
+ * with CSSC-023, which specifies and tests them.
  */
 export type ScanEvent<TTarget> =
   | { kind: "record"; record: ProbeRecord<TTarget> }

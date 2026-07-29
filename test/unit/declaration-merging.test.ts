@@ -43,14 +43,24 @@ function createWorkspaceCopy(): string {
 }
 
 function buildProject(workspace: string, projectPath: string): BuildResult {
+  // A finite timeout keeps a hung compiler from blocking the suite, because
+  // the synchronous spawn prevents the test runner's own timeout from firing.
   const result = spawnSync(tscBin, ["--build", "--force", "--pretty", "false", projectPath], {
     cwd: workspace,
     encoding: "utf8",
+    timeout: 60_000,
   });
 
   return {
     status: result.status,
-    output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+    output: [
+      result.stdout ?? "",
+      result.stderr ?? "",
+      result.error?.message ?? "",
+      result.signal ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
 }
 
@@ -79,6 +89,83 @@ const cases: readonly MergeCase[] = [
       'declare module "./records/index.ts" {\n' +
       "  interface ProbeValue {\n" +
       "    injectedByConsumer: number;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the source position with an interface is rejected",
+    file: "src/core/merge-source-position.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface SourcePosition {\n" +
+      "    injectedByConsumer: number;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the source location with an interface is rejected",
+    file: "src/core/merge-source-location.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface SourceLocation {\n" +
+      "    injectedByConsumer: string;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the call site with an interface is rejected",
+    file: "src/core/merge-call-site.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface CallSite {\n" +
+      "    injectedByConsumer: string;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the function record with an interface is rejected",
+    file: "src/core/merge-function-record.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface FunctionRecord<TTarget> {\n" +
+      "    injectedByConsumer: TTarget;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the value guard with an interface is rejected",
+    file: "src/core/merge-value-guard.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface ValueGuard {\n" +
+      "    injectedByConsumer: boolean;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the diagnostic with an interface is rejected",
+    file: "src/core/merge-diagnostic.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface Diagnostic {\n" +
+      "    injectedByConsumer: string;\n" +
+      "  }\n" +
+      "}\n\n" +
+      "export {};\n",
+  },
+  {
+    name: "reopening the scan summary with an interface is rejected",
+    file: "src/core/merge-scan-summary.ts",
+    contents:
+      'declare module "./records/index.ts" {\n' +
+      "  interface ScanSummary<TTarget> {\n" +
+      "    injectedByConsumer: TTarget;\n" +
       "  }\n" +
       "}\n\n" +
       "export {};\n",
