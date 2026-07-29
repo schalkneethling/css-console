@@ -35,3 +35,4 @@ Files are numbered with a zero-padded four-digit prefix followed by a short slug
 | [0011](./0011-type-rather-than-interface.md)                       | `type` rather than `interface` for public contracts        |
 | [0012](./0012-relationship-to-css-expect.md)                       | Relationship to css-expect                                 |
 | [0013](./0013-parser-selection-postcss.md)                         | Parser selection: PostCSS                                  |
+| [0014](./0014-structural-linting-with-ast-grep.md)                 | Structural linting with ast-grep                           |

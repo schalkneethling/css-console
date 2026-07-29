@@ -33,6 +33,7 @@
     "build": "vp pack",
     "test": "vp test",
     "typecheck": "tsc --build",
+    "lint:structural": "ast-grep scan",
     "stylelint": "stylelint \"**/*.{css,scss}\" --allow-empty-input",
     "stylelint:fix": "stylelint \"**/*.{css,scss}\" --fix --allow-empty-input",
     "e2e": "playwright test --pass-with-no-tests",
@@ -40,6 +41,7 @@
     "prepare": "vp config"
   },
   "devDependencies": {
+    "@ast-grep/cli": "^0.45.0",
     "@playwright/test": "^1.62.0",
     "@schalkneethling/stylelint-plugin-css-property-type-validator": "0.1.0-beta.1",
     "@types/node": "^26.1.1",
