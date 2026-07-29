@@ -13,6 +13,7 @@ const packageRootAlias = {
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
+    "*.ts": "ast-grep scan",
   },
   pack: {
     // The root tsconfig.json is a solution file with an empty file list, so

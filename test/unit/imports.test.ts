@@ -39,14 +39,24 @@ function createLintWorkspace(): string {
 }
 
 function lintWorkspace(workspace: string): LintResult {
+  // A finite timeout keeps a hung linter from blocking the suite, because
+  // the synchronous spawn prevents the test runner's own timeout from firing.
   const result = spawnSync(oxlintBin, ["-c", "oxlint.json", "."], {
     cwd: workspace,
     encoding: "utf8",
+    timeout: 30_000,
   });
 
   return {
     status: result.status,
-    output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+    output: [
+      result.stdout ?? "",
+      result.stderr ?? "",
+      result.error?.message ?? "",
+      result.signal ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
 }
 

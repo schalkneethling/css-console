@@ -1,0 +1,21 @@
+# A synchronous child process blocks the event loop, so the test runner's own
+# timeout cannot fire while the call waits. The child process timeout is the
+# only guard against a hung tool, so every synchronous spawn passes one.
+id: sync-spawn-requires-timeout
+language: TypeScript
+severity: error
+message: Pass a finite `timeout` to synchronous child process calls.
+note: >-
+  A synchronous spawn blocks the event loop, so no other timeout can fire
+  while it waits. Add `timeout` to the options object.
+rule:
+  any:
+    - pattern: spawnSync($$$ARGS)
+    - pattern: execSync($$$ARGS)
+    - pattern: execFileSync($$$ARGS)
+  not:
+    has:
+      stopBy: end
+      pattern:
+        context: "{ timeout: $T }"
+        selector: pair

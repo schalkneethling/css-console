@@ -42,14 +42,24 @@ function createWorkspaceCopy(): string {
 }
 
 function buildProject(workspace: string, projectPath: string): BuildResult {
+  // A finite timeout keeps a hung compiler from blocking the suite, because
+  // the synchronous spawn prevents the test runner's own timeout from firing.
   const result = spawnSync(tscBin, ["--build", "--force", "--pretty", "false", projectPath], {
     cwd: workspace,
     encoding: "utf8",
+    timeout: 60_000,
   });
 
   return {
     status: result.status,
-    output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+    output: [
+      result.stdout ?? "",
+      result.stderr ?? "",
+      result.error?.message ?? "",
+      result.signal ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
 }
 

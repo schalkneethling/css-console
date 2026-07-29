@@ -1,0 +1,16 @@
+# Every public contract is declared with `type` rather than `interface`, so
+# that declaration merging cannot reopen a published contract. The decision is
+# recorded in docs/decisions/0011-type-rather-than-interface.md, and the
+# declaration-merging test suite proves the guarantee holds at the compiler
+# level. This rule catches the violation at lint time, before a build runs.
+id: no-interface-in-src
+language: TypeScript
+severity: error
+files:
+  - src/**
+message: Declare contracts with `type` rather than `interface`.
+note: >-
+  The decision record 0011-type-rather-than-interface.md rejects `interface`
+  under src/ because declaration merging can reopen a published contract.
+rule:
+  pattern: interface $NAME { $$$BODY }
