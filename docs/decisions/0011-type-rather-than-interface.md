@@ -10,7 +10,7 @@ Accepted, 2026-07-26.
 
 The public surface of the package is a set of record and configuration shapes: `ValueRecord`, `FunctionRecord`, `ProbeRecord`, `CallSite`, `ValueGuard`, `Diagnostic`, and `ScanSummary`, among others. TypeScript offers two ways to declare such shapes. An `interface` participates in declaration merging: any consumer can reopen it by declaring an interface of the same name, adding members the library never defined. A `type` alias cannot be reopened.
 
-For this project the shapes are contracts. The `isolated` field on a call site, the `contested` boolean on a guard, and the ordering guarantee on `values` carry documented meaning, and a contract that consumers can silently extend is a contract the project no longer controls.
+For this project the shapes are contracts. The `soleContribution` field on a call site, the `contested` boolean on a guard, and the ordering guarantee on `values` carry documented meaning, and a contract that consumers can silently extend is a contract the project no longer controls.
 
 ## Decision
 

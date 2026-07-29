@@ -30,8 +30,8 @@ Stamping identity attributes onto source elements was rejected because the scann
 
 ## Consequences
 
-- The tool needs network access to same-origin stylesheets. Cross-origin sources without CORS access are deferred by choice, and a blocked fetch produces a `SOURCE_LOAD_FAILED` diagnostic listing likely causes rather than claiming one.
+- The tool needs network access to same-origin stylesheets. Cross-origin sources without CORS access are deferred by choice, and when a fetch is blocked the tool emits a `SOURCE_LOAD_FAILED` diagnostic that lists the likely causes rather than asserting a single definite one.
 - Constructed stylesheets without registered source text are deferred, because they have no source text to parse.
 - Source text and the live document can disagree, for example when an inline style or another rule wins. The guard exists to keep that disagreement from producing misleading output.
-- Annotations shipped in production CSS are stripped by most minifiers, which the documentation states together with the exceptions.
+- css-console is a development-time tool. It is not intended for production use, and its library and design choices assume it never ships to production. Annotations left in production CSS are in any case stripped by most minifiers, so the residual concern is minor; the documentation states this together with the exceptions.
 - The parser decision remains open until CSSC-002 records it on evidence.

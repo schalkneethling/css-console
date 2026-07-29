@@ -11,7 +11,7 @@ Package name: `@schalkneethling/css-console`
 
 **Revision 5 keeps that thesis and corrects the plan around it.** The changes are process rules, two corrected specifications, and two decisions raised rather than assumed.
 
-**Revision 6 applies corrections from the Phase 0 review.** Three specifications are corrected. Function-probe values are always resolved property values, because `getComputedStyle()` applies the destination property's value resolution even when the call is the entire declaration value, so `isolated` narrows the contribution claim rather than promising a return value. The `unresolved-variable` guard accounts for `var()` fallbacks, because an empty custom-property lookup does not invalidate a declaration whose reference carries a valid fallback. The package half of the import boundary is enforced by a lint rule proven alive by a test, because the compiler accepts any import whose module specifier resolves; the builtin half remains compiler-enforced through `types: []`.
+**Revision 6 applies corrections from the Phase 0 review.** Three specifications are corrected. Function-probe values are always resolved property values, because `getComputedStyle()` applies the destination property's value resolution even when the call is the entire declaration value, so `soleContribution` narrows the contribution claim rather than promising a return value. The `unresolved-variable` guard accounts for `var()` fallbacks, because an empty custom-property lookup does not invalidate a declaration whose reference carries a valid fallback. The package half of the import boundary is enforced by a lint rule proven alive by a test, because the compiler accepts any import whose module specifier resolves; the builtin half remains compiler-enforced through `types: []`.
 
 ### Decisions raised for Phase 0
 
@@ -67,7 +67,7 @@ Sass reached this point long ago, and the shape of its answer is instructive. Sa
 
 ### 2.2 The scope principle
 
-A value is worth probing when it cannot be known from the source text alone, only after the browser has parsed and applied the CSS. That criterion covers the values custom function calls resolve to, `calc()` against relative units and percentages, which bound a `clamp()` landed on, `color-mix()` and relative color syntax, `light-dark()`, container units resolving against whichever container won, custom properties arriving through an inheritance chain, generated content sizing, `random()`, and `if()` branches once they ship.
+A value is worth probing when it cannot be known from the source text alone, only after the browser has parsed and applied the CSS. That criterion covers the resolved values of destination properties whose declarations contain custom function calls, `calc()` against relative units and percentages, which bound a `clamp()` landed on, `color-mix()` and relative color syntax, `light-dark()`, container units resolving against whichever container won, custom properties arriving through an inheritance chain, generated content sizing, `random()`, and `if()` branches once they ship.
 
 The criterion is a center of gravity rather than a restriction. A deterministic `calc(2px + 3px)` is not refused. The criterion decides what the demonstration leads with, what the documentation teaches first, and which capability gaps are worth closing.
 
@@ -247,7 +247,7 @@ type CallSite = {
    * function's return value, because the destination property's own
    * value resolution applies before the tool can observe anything.
    */
-  isolated: boolean;
+  soleContribution: boolean;
   selector: string;
   source: SourceLocation;
 };
@@ -270,7 +270,7 @@ type FunctionRecord<TTarget> = {
 type ProbeRecord<TTarget> = ValueRecord<TTarget> | FunctionRecord<TTarget>;
 ```
 
-`isolated` is the honesty field, and its claim is about contribution rather than about return values. Every reported value is the property's resolved value: a function returning a percentage or a relative length has that result transformed by the destination property's value resolution before `getComputedStyle()` exposes it, so no reported value is a return value, even for an isolated call. A declaration reading `padding: --space(4)` resolves a value the call alone produced. A declaration reading `padding: calc(--space(4) + 2px)` does not, and the record says so rather than implying an isolation the tool cannot observe.
+`soleContribution` is the honesty field, and its claim is about contribution rather than about return values. Every reported value is the property's resolved value: a function returning a percentage or a relative length has that result transformed by the destination property's value resolution before `getComputedStyle()` exposes it, so no reported value is a return value, even for a sole-contribution call. A declaration reading `padding: --space(4)` resolves a value the call alone produced. A declaration reading `padding: calc(--space(4) + 2px)` does not, and the record says so rather than implying a sole contribution the tool cannot observe.
 
 Isolating a nested call would require synthesizing a probe element carrying the original element's custom property context, which conflicts with the read-only guarantee. css-expect isolates properly, off-page, and is the right tool for that question.
 
@@ -351,6 +351,7 @@ Browser records hold live `Element` references so that developer tools render th
 - Source locations
 - Output limiting and one-shot scans
 - `@media` and `@supports` gates, transparent `@layer` traversal
+- A serializable summary projection and a development-only command-line scan wrapper, so that machine consumers, including coding agents, read records rather than scraping console output
 - A demonstration page and a written capability argument
 
 ### 4.2 Reserved pending browser support
@@ -569,7 +570,7 @@ The scanner never writes to the document. Source identity uses a `WeakMap` for s
 
 ### 5.10 Condition and rule-context behavior
 
-`@media` is active when `matchMedia(query).matches`. `@supports` is active when `CSS.supports(condition)` returns true. `@layer` does not affect matching and is retained as optional metadata. Unsupported rule contexts produce `UNSUPPORTED_RULE_CONTEXT` naming the at-rule in details, and skip: these are `@container`, `@scope`, `@starting-style`, and `@keyframes`.
+`@media` is active when `matchMedia(query).matches`. `@supports` is active when `CSS.supports(condition)` returns true. `@layer` does not affect matching and is retained as optional metadata. Rule contexts outside the supported target set produce `OUTSIDE_SUPPORTED_TARGET_SET`, naming the at-rule in details and marking it unsupported by css-console rather than by the browser, and skip: these are `@container`, `@scope`, `@starting-style`, and `@keyframes`.
 
 `@scope` deserves particular attention. Its matching semantics cannot be reproduced by a plain `querySelectorAll()` call, so a scoped probe would silently over-match rather than fail loudly. Skipping with a diagnostic is the only truthful behavior available in v0.
 
@@ -787,7 +788,7 @@ Labels: `phase-1`, `core`, `parser`
 
 **Review question**: do annotations attach to the intended targets?
 
-Red cases: a comment immediately preceding a style rule attaches; a comment immediately preceding `@function` attaches as a function probe; an unrelated comment between annotation and target prevents attachment; whitespace-only separation attaches; an end-of-file annotation reports no target; annotations preceding `@mixin`, `@apply`, `@contents`, and `@env` each report the reserved-pending-support code; annotations preceding `@media`, `@supports`, and `@layer` report the not-a-target code with remediation naming the rules inside; annotations preceding `@keyframes` and `@container` report unsupported rule context.
+Red cases: a comment immediately preceding a style rule attaches; a comment immediately preceding `@function` attaches as a function probe; an unrelated comment between annotation and target prevents attachment; whitespace-only separation attaches; an end-of-file annotation reports no target; annotations preceding `@mixin`, `@apply`, `@contents`, and `@env` each report the reserved-pending-support code; annotations preceding `@media`, `@supports`, and `@layer` report the not-a-target code with remediation naming the rules inside; annotations preceding `@keyframes` and `@container` report a target outside the supported set.
 
 Acceptance: the three tiers produce three distinguishable diagnostics, and no tier is silently conflated with another.
 
@@ -847,7 +848,7 @@ Labels: `phase-1`, `core`, `functions`
 
 This is the differentiating capability, and it has no browser dependency.
 
-Red cases: a single call site; multiple call sites across rules; two calls to the same function in one declaration value producing two call sites; a call whose value is the entire declaration sets `isolated: true`; a call nested in `calc()` sets `isolated: false`; a call passed as an argument to another call records the outer call with the inner captured verbatim; a call inside another function body is recorded as a definition reference rather than a call site; arguments captured as authored, including `var()` references; a function with no call sites produces an informational diagnostic rather than silence; a call site inside an unsupported rule context is excluded; name matching is case-sensitive, matching dashed-ident rules.
+Red cases: a single call site; multiple call sites across rules; two calls to the same function in one declaration value producing two call sites; a call whose value is the entire declaration sets `soleContribution: true`; a call nested in `calc()` sets `soleContribution: false`; a call passed as an argument to another call records the outer call with the inner captured verbatim; a call inside another function body is recorded as a definition reference rather than a call site; arguments captured as authored, including `var()` references; a function with no call sites produces an informational diagnostic rather than silence; a call site inside a rule context outside the supported target set is excluded; name matching is case-sensitive, matching dashed-ident rules.
 
 Acceptance: call-site resolution runs after nesting resolution, so recorded selectors are flat; a function probe with zero call sites is reported, because that is itself a useful debugging answer.
 
@@ -859,7 +860,7 @@ Labels: `phase-1`, `core`, `compiler`
 
 The index answers one question: does anything else declare this property. It stores what a boolean needs and nothing more.
 
-Red cases: a source with no annotations still contributes; a declaration is findable under each expanded longhand key; a shorthand is findable under all its longhand keys; `all` is findable under every key; logical declarations defer to per-element resolution; declarations inside inactive conditions retain their conditions; declarations inside unsupported rule contexts and `@keyframes` are excluded; nested rules contribute resolved selectors; the annotated declaration is identifiable so that it is excluded from its own guard.
+Red cases: a source with no annotations still contributes; a declaration is findable under each expanded longhand key; a shorthand is findable under all its longhand keys; `all` is findable under every key; logical declarations defer to per-element resolution; declarations inside inactive conditions retain their conditions; declarations inside rule contexts outside the supported target set and `@keyframes` are excluded; nested rules contribute resolved selectors; the annotated declaration is identifiable so that it is excluded from its own guard.
 
 Acceptance: no competitor counts, source locations, or ordering are retained, because the guard does not present them.
 
@@ -907,7 +908,7 @@ Red cases: an ordinary property; `calc()` resolving to pixels; `clamp()` at and 
 
 Labels: `phase-2`, `browser`, `functions`
 
-Red cases: a call site with one matched element; a call site with many matched elements producing one record each; multiple call sites for one function; an isolated call reporting the resolved value the call alone produced, including a case where the destination property transforms the result, such as a returned percentage resolving to pixels; a nested call reporting the property value with `isolated: false`; arguments preserved as authored; a function whose result varies per element through a custom property argument; a browser without `@function` support producing a reserved-pending-support diagnostic rather than an error.
+Red cases: a call site with one matched element; a call site with many matched elements producing one record each; multiple call sites for one function; a sole-contribution call reporting the resolved value the call alone produced, including a case where the destination property transforms the result, such as a returned percentage resolving to pixels; a nested call reporting the property value with `soleContribution: false`; arguments preserved as authored; a function whose result varies per element through a custom property argument; a browser without `@function` support producing a reserved-pending-support diagnostic rather than an error.
 
 ### CSSC-021 — Evaluate the contested guard
 
@@ -1001,7 +1002,7 @@ Acceptance: the table is legible at fifty rows; no information exists only in st
 
 Labels: `phase-4`, `console`, `ux`, `functions`
 
-Red: a group per function naming the definition location; one table per call site showing arguments, property, and per-element resolved value; values labeled resolved property values throughout, with a non-isolated call additionally marked as including surrounding expression contributions; multiple call sites rendering as sibling groups; a function with no call sites rendering an informational line; definition references listed separately from call sites.
+Red: a group per function naming the definition location; one table per call site showing arguments, property, and per-element resolved value; values labeled resolved property values throughout, with a call that is not the sole contribution additionally marked as including surrounding expression contributions; multiple call sites rendering as sibling groups; a function with no call sites rendering an informational line; definition references listed separately from call sites.
 
 ### CSSC-032 — Render diagnostics and the handoff
 
@@ -1033,7 +1034,7 @@ Labels: `phase-4`, `docs`
 
 Two deliverables, both held to the writing standards.
 
-**Usage documentation**: installation, the probe kinds, API, examples, diagnostics, and limitations. It explains the scope principle; what the guard does and does not claim; why the levels come from the Console API and carry no assertion semantics; the `display: none` fallback; the element retention hazard; the difference between reserved-pending-support, deferred, and not-a-target; that every reported value is a resolved property value rather than a function return value, with `isolated` narrowing only the contribution claim, naming css-expect as the tool for isolated assertions; and that annotations in production CSS are stripped by most minifiers, with the exceptions named.
+**Usage documentation**: installation, the probe kinds, API, examples, diagnostics, and limitations. It explains the scope principle; what the guard does and does not claim; why the levels come from the Console API and carry no assertion semantics; the `display: none` fallback; the element retention hazard; the difference between reserved-pending-support, deferred, and not-a-target; that every reported value is a resolved property value rather than a function return value, with `soleContribution` narrowing only the contribution claim, naming css-expect as the tool for isolated assertions; and that annotations in production CSS are stripped by most minifiers, with the exceptions named.
 
 **Capability write-up** in `docs/capabilities.md`: what a page-scoped script can and cannot observe about computed CSS. It states the litmus test, enumerates the out-of-reach list with the reason each item is unreachable, and describes what an engine-level implementation could offer instead, most pointedly which branch inside a function body produced `result`. This is written to be useful to contributors and users regardless of whether any browser engineer reads it.
 
@@ -1070,6 +1071,18 @@ Budgets on documented fixture hardware:
 - Selector match results are cached per branch and element within a scan.
 - Guard cost scales with declarations touching the selected properties, not with total declarations.
 - Call-site resolution is linear in declaration count.
+
+### CSSC-040 — Machine-consumer surface: summary projection and CLI wrapper
+
+Labels: `phase-5`, `api`, `tooling`
+
+Machine consumers, including coding agents driving a browser, read the scan summary rather than the console rendering, because re-parsing rendered console output is lossy where the summary is not. Browser records hold live `Element` references that structured cloning rejects, so the summary gains a serializable projection: each record's target is replaced with a re-locatable handle, and every other field survives JSON serialization unchanged. A development-only command-line wrapper loads a page headlessly, injects the library, runs one scan, and prints the projected summary as JSON on standard output.
+
+The handle exists for re-acquisition, not description. A machine consumer never needs the node for what the scan already answered, because the record carries the values as data; it needs the node only for follow-up actions such as screenshotting, clicking, or reading an attribute the scan did not capture. The resolved selector alone is not a handle, because one selector with fifty matches produces fifty records sharing it, so the handle carries the selector plus the element's index within that selector's match set, in document order, so that a driver expression such as `page.locator(selector).nth(index)` re-acquires the element. Tag name, id, and classes ride along as verification fields rather than as the key, so a consumer can detect that the DOM changed under the handle. The handle is a snapshot, valid only while the document holds still: a mutation between scan and re-query can silently shift the index, which the documentation states as a caveat and the verification fields make detectable rather than silent.
+
+Red cases: the projection survives `JSON.stringify()` and `JSON.parse()` without loss; a projected record carries no live element reference; a driver's `page.evaluate()` returns the projected summary without a serialization error; two records sharing a selector carry distinct indices in document order; re-acquiring through selector and index yields the element the record described, verified against the verification fields; a mutation that shifts the match set makes the verification fields disagree rather than silently matching; the CLI exits zero on a successful scan and prints valid JSON; the CLI exits nonzero with a diagnostic when the page fails to load; the console rendering and its live-element handoff are unchanged by projection.
+
+Acceptance: an agent driving Playwright obtains the full projected summary through one `page.evaluate()` call; the CLI output parses as a projected `ScanSummary`; a driver's console message API, such as Playwright's ConsoleMessage, remains the adapter test harness and the fallback where evaluation is not possible. Agent-protocol packaging, such as an MCP server, stays deferred under CSSC-127.
 
 ### CSSC-038 — Package and CI release gates
 
@@ -1111,6 +1124,7 @@ Acceptance: the changelog describes experimental status, the reserved-pending-su
 - **CSSC-124 — PostCSS or css-tree extraction plugin**, depending on the parser decision.
 - **CSSC-125 — Vite integration.**
 - **CSSC-126 — Workspace split**, mechanical because dependency direction already lives in the reference graph.
+- **CSSC-127 — Agent-protocol packaging.** An MCP server over the same headless loop the CSSC-040 command-line wrapper runs, exposing a scan as a tool call that returns the projected summary. Deferred because the CSSC-040 CLI already gives an agent a shell-invocable surface, and a protocol veneer over it can wait for demand.
 
 ### Engine-level, documented rather than built
 
@@ -1131,10 +1145,10 @@ Acceptance: the changelog describes experimental status, the reserved-pending-su
                                ↓
 030 → 031/032 → 033 → 034 → 035
                               ↓
-036/037 → 038 → 039
+036/037/040 → 038 → 039
 ```
 
-Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion tables can be built alongside the parser track. CSSC-006 and CSSC-007 follow the grammar. CSSC-020 and CSSC-021 are independent. CSSC-025 and CSSC-026 follow inline discovery. CSSC-031 and CSSC-032 follow the base adapter.
+Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion tables can be built alongside the parser track. CSSC-006 and CSSC-007 follow the grammar. CSSC-020 and CSSC-021 are independent. CSSC-025 and CSSC-026 follow inline discovery. CSSC-031 and CSSC-032 follow the base adapter. CSSC-040 depends only on the public `scan()` surface and runs alongside cross-browser coverage and performance budgets; it precedes CSSC-038 so that the release gates cover the command-line wrapper.
 
 ## 13. Milestone mapping
 
@@ -1145,7 +1159,7 @@ Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion
 | M2 Evaluator                 | CSSC-017–023 | Real-browser records with guard                       |
 | M3 One-shot library          | CSSC-024–029 | Public `scan()` with source gating and filtering      |
 | M4 Console and demonstration | CSSC-030–035 | Console experience, playground, write-up, user signal |
-| M5 Experimental release      | CSSC-036–039 | `0.1.0-experimental`                                  |
+| M5 Experimental release      | CSSC-036–040 | `0.1.0-experimental`                                  |
 
 ## 14. Release acceptance scenario
 
@@ -1192,7 +1206,7 @@ Expected:
 - one collapsed group labeled `spacing scale`, naming the definition location;
 - two call-site tables, one for `--space(4)` and one for `--space(2)`;
 - three inspectable article elements across those tables, each with its resolved padding;
-- every call marked `isolated: true`, because each call is the whole declaration value;
+- every call marked `soleContribution: true`, because each call is the whole declaration value;
 - `contested: false` throughout, because nothing competes;
 - a scan summary carrying the records;
 - an unmodified document and no background observers after completion.

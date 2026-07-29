@@ -20,7 +20,9 @@ At-rule targets fall into three tiers, and each tier produces a different diagno
 | Reserved pending support | `@mixin`, `@apply`, `@contents`, `@env` | Parses, then reports that the browser does not yet support it |
 | Not a target by design   | `@media`, `@supports`, `@layer`         | Reports that grouping constructs are not annotation targets   |
 
-Targets rejected by design carry remediation rather than a bare refusal: annotate the rules inside the grouping construct. Annotations preceding at-rules outside these tiers, such as `@keyframes` and `@container`, report an unsupported rule context.
+Targets rejected by design carry remediation rather than a bare refusal: annotate the rules inside the grouping construct. Annotations preceding at-rules outside these tiers, such as `@keyframes` and `@container`, report a target outside the supported set, diagnosed as unsupported by css-console rather than as a browser gap.
+
+Diagnostic naming keeps the two senses of "unsupported" apart. A reserved-pending-support diagnostic names a browser gap, meaning the current user agent does not yet support the construct. A target outside the supported set names a tool-scope limitation, meaning css-console does not treat the construct as an annotation target. No diagnostic phrases a tool-scope limitation as a browser gap, and no diagnostic phrases a browser gap as a tool-scope limitation.
 
 Acceptance for the association work states that the three tiers produce three distinguishable diagnostics, and no tier is silently conflated with another.
 
@@ -34,7 +36,7 @@ Silently ignoring annotations on unsupported targets was rejected because unsupp
 
 ## Consequences
 
-- The diagnostic registry carries distinguishable codes for reserved-pending-support targets, by-design rejections, and unsupported rule contexts, each with a fixture that triggers it.
+- The diagnostic registry carries distinguishable codes for reserved-pending-support targets, by-design rejections, and targets outside the supported set, each with a fixture that triggers it.
 - When the browser ships `@mixin` support, the reserved tier moves to supported under CSSC-101 without changing the model.
 - The console adapter renders a reserved-pending-support diagnostic so that it reads as a browser gap, and a not-a-target diagnostic so that it carries remediation.
 - This model is the annotation-target application of the three-way scope split recorded separately.

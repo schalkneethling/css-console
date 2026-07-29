@@ -22,7 +22,7 @@ The Sass precedent is applied selectively:
 - From `@warn`: emit the call chain, whose function-probe equivalent is the call-site chain, and support per-dependency silencing, which is why source-scoped `exclude` filtering is in the configuration from the first release.
 - `@error` is deliberately not copied. It aborts compilation, and CSS Console cannot abort anything, because the CSS has already applied by the time the runtime executes. The four levels descend from the Console API, not from Sass, and the documentation says so plainly.
 
-The boundary also settles a concrete design question: isolating a nested function call's return value would require synthesizing a probe element, which conflicts with the read-only guarantee. css-expect isolates properly, off-page, so non-isolated calls are marked with `isolated: false` and the documentation names css-expect as the tool for isolated assertions.
+The boundary also settles a concrete design question: isolating a nested function call's return value would require synthesizing a probe element, which conflicts with the read-only guarantee. css-expect isolates properly, off-page, so calls that are not the sole contribution are marked with `soleContribution: false` and the documentation names css-expect as the tool for isolated assertions.
 
 ## Alternatives considered
 
