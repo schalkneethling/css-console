@@ -351,6 +351,7 @@ Browser records hold live `Element` references so that developer tools render th
 - Source locations
 - Output limiting and one-shot scans
 - `@media` and `@supports` gates, transparent `@layer` traversal
+- A serializable summary projection and a development-only command-line scan wrapper, so that machine consumers, including coding agents, read records rather than scraping console output
 - A demonstration page and a written capability argument
 
 ### 4.2 Reserved pending browser support
@@ -1071,6 +1072,16 @@ Budgets on documented fixture hardware:
 - Guard cost scales with declarations touching the selected properties, not with total declarations.
 - Call-site resolution is linear in declaration count.
 
+### CSSC-040 — Machine-consumer surface: summary projection and CLI wrapper
+
+Labels: `phase-5`, `api`, `tooling`
+
+Machine consumers, including coding agents driving a browser, read the scan summary rather than the console rendering, because re-parsing rendered console output is lossy where the summary is not. Browser records hold live `Element` references that structured cloning rejects, so the summary gains a serializable projection: each record's target is replaced with a stable element description, such as the resolved selector, tag name, id, and classes, and every other field survives JSON serialization unchanged. A development-only command-line wrapper loads a page headlessly, injects the library, runs one scan, and prints the projected summary as JSON on standard output.
+
+Red cases: the projection survives `JSON.stringify()` and `JSON.parse()` without loss; a projected record carries no live element reference; a driver's `page.evaluate()` returns the projected summary without a serialization error; the CLI exits zero on a successful scan and prints valid JSON; the CLI exits nonzero with a diagnostic when the page fails to load; the console rendering and its live-element handoff are unchanged by projection.
+
+Acceptance: an agent driving Playwright obtains the full projected summary through one `page.evaluate()` call; the CLI output parses as a projected `ScanSummary`; a driver's console message API, such as Playwright's ConsoleMessage, remains the adapter test harness and the fallback where evaluation is not possible. Agent-protocol packaging, such as an MCP server, stays deferred under CSSC-127.
+
 ### CSSC-038 — Package and CI release gates
 
 Labels: `phase-5`, `release`, `ci`
@@ -1111,6 +1122,7 @@ Acceptance: the changelog describes experimental status, the reserved-pending-su
 - **CSSC-124 — PostCSS or css-tree extraction plugin**, depending on the parser decision.
 - **CSSC-125 — Vite integration.**
 - **CSSC-126 — Workspace split**, mechanical because dependency direction already lives in the reference graph.
+- **CSSC-127 — Agent-protocol packaging.** An MCP server over the same headless loop the CSSC-040 command-line wrapper runs, exposing a scan as a tool call that returns the projected summary. Deferred because the CSSC-040 CLI already gives an agent a shell-invocable surface, and a protocol veneer over it can wait for demand.
 
 ### Engine-level, documented rather than built
 
@@ -1131,10 +1143,10 @@ Acceptance: the changelog describes experimental status, the reserved-pending-su
                                ↓
 030 → 031/032 → 033 → 034 → 035
                               ↓
-036/037 → 038 → 039
+036/037/040 → 038 → 039
 ```
 
-Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion tables can be built alongside the parser track. CSSC-006 and CSSC-007 follow the grammar. CSSC-020 and CSSC-021 are independent. CSSC-025 and CSSC-026 follow inline discovery. CSSC-031 and CSSC-032 follow the base adapter.
+Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion tables can be built alongside the parser track. CSSC-006 and CSSC-007 follow the grammar. CSSC-020 and CSSC-021 are independent. CSSC-025 and CSSC-026 follow inline discovery. CSSC-031 and CSSC-032 follow the base adapter. CSSC-040 depends only on the public `scan()` surface and runs alongside cross-browser coverage and performance budgets; it precedes CSSC-038 so that the release gates cover the command-line wrapper.
 
 ## 13. Milestone mapping
 
@@ -1145,7 +1157,7 @@ Parallel work: CSSC-012 depends only on the fixture foundation, so the expansion
 | M2 Evaluator                 | CSSC-017–023 | Real-browser records with guard                       |
 | M3 One-shot library          | CSSC-024–029 | Public `scan()` with source gating and filtering      |
 | M4 Console and demonstration | CSSC-030–035 | Console experience, playground, write-up, user signal |
-| M5 Experimental release      | CSSC-036–039 | `0.1.0-experimental`                                  |
+| M5 Experimental release      | CSSC-036–040 | `0.1.0-experimental`                                  |
 
 ## 14. Release acceptance scenario
 
