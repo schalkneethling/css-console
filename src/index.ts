@@ -31,6 +31,15 @@ export type {
 export type { Diagnostic } from "./core/diagnostics/index.ts";
 
 export type {
+  DiagnosticCategory,
+  DiagnosticCode,
+  DiagnosticDefinition,
+  DiagnosticSeverity,
+} from "./core/diagnostics/index.ts";
+
+export { createDiagnostic, DIAGNOSTIC_REGISTRY } from "./core/diagnostics/index.ts";
+
+export type {
   BrowserFunctionRecord,
   BrowserProbeRecord,
   BrowserScanEvent,
