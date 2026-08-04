@@ -102,7 +102,7 @@ function readDocumentedCodes(): string[] {
   const documented: string[] = [];
 
   for (const line of contents.split("\n")) {
-    const match = /^### ([A-Z_]+)$/.exec(line.trim());
+    const match = /^## ([A-Z_]+)$/.exec(line.trim());
 
     if (match) {
       documented.push(match[1]);
