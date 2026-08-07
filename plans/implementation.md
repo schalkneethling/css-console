@@ -998,6 +998,8 @@ Red: log-level-to-method mapping; a `groupCollapsed()` title carrying label, sel
 
 Acceptance: the table is legible at fifty rows; no information exists only in styling; adapter failure cannot break scanning; `console` is never wrapped, replaced, or intercepted.
 
+Also render matrix-valued properties legibly. `transform` resolves to a matrix rather than to the function the author wrote, so a probe on `transform: translateX(calc(var(--i) * (var(--size) + var(--gap))))` reports `matrix(1, 0, 0, 1, 88, 0)`, verified in Chromium. The `88` is exactly what the custom property chain produced and is the answer the author wanted, but reading it out of an unlabeled six-tuple is a poor way to receive it. Render the translation, scale, and rotation components alongside the raw value rather than instead of it, because the raw value is what developer tools shows and the handoff depends on the two agreeing. `rotate`, `scale`, and `translate` resolve independently and do not need this.
+
 ### CSSC-031 — Render function probes
 
 Labels: `phase-4`, `console`, `ux`, `functions`
