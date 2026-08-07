@@ -55,7 +55,9 @@ const EXPECTED_DEFINITIONS = {
   SOURCE_HTTP_ERROR: { severity: "error", category: "source" },
   NO_TARGET: { severity: "warning", category: "annotation" },
   UNKNOWN_LOG_LEVEL: { severity: "error", category: "annotation" },
+  MISSING_LOG_LEVEL: { severity: "error", category: "annotation" },
   UNKNOWN_OPTION: { severity: "error", category: "annotation" },
+  DUPLICATE_OPTION: { severity: "error", category: "annotation" },
   PROPERTY_LIST_ON_DECLARATION_PROBE: { severity: "error", category: "annotation" },
   PROPERTY_LIST_ON_FUNCTION_PROBE: { severity: "error", category: "annotation" },
   NO_CALL_SITES: { severity: "info", category: "informational" },
@@ -245,7 +247,7 @@ export type RegistryTypeAssertions = [
     >
   >,
 
-  // The code type is exactly the union of the twelve dictated code names.
+  // The code type is exactly the union of the fourteen dictated code names.
   Expect<
     Equal<
       DiagnosticCode,
@@ -257,7 +259,9 @@ export type RegistryTypeAssertions = [
       | "SOURCE_HTTP_ERROR"
       | "NO_TARGET"
       | "UNKNOWN_LOG_LEVEL"
+      | "MISSING_LOG_LEVEL"
       | "UNKNOWN_OPTION"
+      | "DUPLICATE_OPTION"
       | "PROPERTY_LIST_ON_DECLARATION_PROBE"
       | "PROPERTY_LIST_ON_FUNCTION_PROBE"
       | "NO_CALL_SITES"
