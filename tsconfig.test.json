@@ -10,6 +10,6 @@
       "@schalkneethling/css-console": ["./src/index.ts"]
     }
   },
-  "include": ["test", "vite.config.ts", "playwright.config.ts"],
+  "include": ["test", "scripts", "vite.config.ts", "playwright.config.ts"],
   "references": [{ "path": "./src/tsconfig.json" }]
 }
