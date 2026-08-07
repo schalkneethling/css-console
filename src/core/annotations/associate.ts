@@ -159,8 +159,15 @@ function functionNameOf(params: string): string {
  * An at-rule the target table does not name falls outside the supported set:
  * css-console does not compile a probe for it, which is a tool-scope
  * limitation rather than a browser gap.
+ *
+ * At-keywords are ASCII case-insensitive in CSS and PostCSS preserves the
+ * case the author wrote, so the lookup normalises. Only the lookup: the name
+ * a diagnostic reports stays exactly as authored, because an author searching
+ * their stylesheet for what a diagnostic named should find it.
  */
-function codeForAtRule(name: string): DiagnosticCode | undefined {
+function codeForAtRule(rawName: string): DiagnosticCode | undefined {
+  const name = rawName.toLowerCase();
+
   if (name === FUNCTION_AT_RULE) {
     return undefined;
   }

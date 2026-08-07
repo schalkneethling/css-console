@@ -233,6 +233,43 @@ test("the three tiers stay distinguishable, with no at-rule shared between them"
   expect(byCode.get("OUTSIDE_SUPPORTED_TARGET_SET")).toHaveLength(2);
 });
 
+test("at-rule names are matched case-insensitively, as CSS defines them", () => {
+  // At-keywords are ASCII case-insensitive in CSS, and PostCSS preserves the
+  // case the author wrote, so the tier lookup has to normalise or @MEDIA
+  // silently lands in the wrong tier.
+  expect(
+    codes(associate("/* css-console: log */\n@MEDIA (min-width: 40rem) { .a { color: red } }")),
+  ).toEqual(["NOT_A_TARGET"]);
+  expect(
+    codes(associate("/* css-console: log */\n@KeyFrames --fade { from { opacity: 0 } }")),
+  ).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
+  expect(codes(associate("/* css-console: log */\n@Mixin --card { color: red }"))).toEqual([
+    "RESERVED_PENDING_SUPPORT",
+  ]);
+});
+
+test("an uppercase @FUNCTION still attaches as a function probe", () => {
+  const associated = onlyAnnotation(
+    associate(`/* css-console: log */
+@FUNCTION --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}`),
+  );
+
+  expect(associated.target.kind).toBe("function");
+  // The at-keyword is case-insensitive, but the function name is a custom
+  // identifier and stays exactly as authored.
+  expect(associated.target.kind === "function" && associated.target.functionName).toBe("--space");
+});
+
+test("a tier diagnostic reports the at-rule name as authored, not normalised", () => {
+  const result = associate(
+    "/* css-console: log */\n@MEDIA (min-width: 40rem) { .a { color: red } }",
+  );
+
+  expect(result.diagnostics[0]?.details).toEqual({ atRule: "MEDIA" });
+});
+
 test("an at-rule outside the target table is reported as outside the supported set", () => {
   const result = associate(`/* css-console: log */
 @font-face {
