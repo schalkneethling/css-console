@@ -1,0 +1,61 @@
+/**
+ * Hardening fixture for the three-tier at-rule target model.
+ *
+ * Every at-rule the plan's target table names appears here under an
+ * annotation, so the tiers can be proven distinguishable against one parse of
+ * one file rather than against a string per case. The supported tier is
+ * covered by the representative fixture, which carries the @function probe an
+ * author would actually write; this file covers the two rejecting tiers and
+ * the reserved tier, whose at-rules no browser evaluates for css-console yet.
+ */
+
+/* css-console: log label="reserved mixin" */
+@mixin --card-surface {
+  background-color: canvas;
+}
+
+/* css-console: log label="reserved apply" */
+@apply --card-surface;
+
+/* css-console: log label="reserved contents" */
+@contents;
+
+/* css-console: log label="reserved env" */
+@env --safe-area {
+  padding-block-start: 1rem;
+}
+
+/* css-console: log label="grouping media" */
+@media (min-width: 40rem) {
+  .grouped {
+    padding: 1rem;
+  }
+}
+
+/* css-console: log label="grouping supports" */
+@supports (display: grid) {
+  .supported {
+    display: grid;
+  }
+}
+
+/* css-console: log label="grouping layer" */
+@layer components {
+  .layered {
+    color: canvastext;
+  }
+}
+
+/* css-console: log label="outside the set, keyframes" */
+@keyframes --fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* css-console: log label="outside the set, container" */
+@container (min-inline-size: 20rem) {
+  .contained {
+    inline-size: 100%;
+  }
+}
