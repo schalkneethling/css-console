@@ -36,9 +36,17 @@ This diagnostic fires when a css-console annotation comment has nothing to attac
 
 This diagnostic fires when an annotation names a log level outside the valid set `log`, `info`, `warn`, and `error`. It tells you the annotation was rejected before compilation. Replace the log level with one of the four valid names.
 
+## MISSING_LOG_LEVEL
+
+This diagnostic fires when an annotation names the directive and the colon but no log level, as in `/* css-console: */` or `/* css-console: label="cards" */`. It tells you the annotation was rejected before compilation, and it is distinct from `UNKNOWN_LOG_LEVEL`, which fires when a log level is present but is not one of the four valid names. The log level is required and always comes first. Add `log`, `info`, `warn`, or `error` immediately after the colon.
+
 ## UNKNOWN_OPTION
 
 This diagnostic fires when an annotation includes an option the grammar does not define. It tells you the annotation was rejected before compilation. The valid options are a property list and a `label`; remove or correct the unrecognized option.
+
+## DUPLICATE_OPTION
+
+This diagnostic fires when an annotation names the same option twice, such as two `label` options or two property lists. It tells you the annotation was rejected before compilation, because the intended value cannot be determined from a repeated option and guessing at one would report a probe you did not ask for. Remove the repeated option, keeping the one you meant.
 
 ## PROPERTY_LIST_ON_DECLARATION_PROBE
 
