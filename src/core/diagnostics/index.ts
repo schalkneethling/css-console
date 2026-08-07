@@ -168,6 +168,18 @@ export const DIAGNOSTIC_REGISTRY = {
     "informational",
     "The annotated function has no call sites in the scanned sources. This is reported because it is itself a useful debugging answer, not because it is an error.",
   ),
+  MISSING_REQUESTED_PROPERTY: defineDiagnostic(
+    "MISSING_REQUESTED_PROPERTY",
+    "warning",
+    "annotation",
+    "A rule probe's property list names a property the rule does not declare. The remaining requested properties still compile, so this is a warning rather than an error.",
+  ),
+  REPEATED_DECLARATION: defineDiagnostic(
+    "REPEATED_DECLARATION",
+    "info",
+    "informational",
+    "A property covered by a rule probe is declared more than once in the rule. The last authored value is reported, matching how the cascade resolves repeats within one rule.",
+  ),
 } as const;
 
 /**

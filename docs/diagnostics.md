@@ -59,3 +59,11 @@ This diagnostic fires when an annotation preceding an `@function` definition car
 ## NO_CALL_SITES
 
 This diagnostic fires when an annotated function has zero call sites across the scanned sources. It carries informational severity rather than warning or error severity, because a function with no call sites is not a mistake in the annotation; it tells you that the function you are probing is unused in the sources css-console scanned, which is itself a useful debugging answer.
+
+## MISSING_REQUESTED_PROPERTY
+
+This diagnostic fires when a rule probe's property list names a property the rule does not declare. It carries warning rather than error severity, because the rest of the requested properties still compile and report; only the missing one is skipped. Check the property name for a typo, or confirm that the rule you annotated is the one that declares it.
+
+## REPEATED_DECLARATION
+
+This diagnostic fires when a property a rule probe covers is declared more than once in the same rule. It carries informational severity rather than warning or error severity, because the repeat is not a mistake in the annotation: the probe reports the last authored value, which is what the cascade resolves to within one rule. Check the rule if the repeat was unintentional.
