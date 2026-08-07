@@ -15,10 +15,9 @@ import { fixtureUrl, loadFixture } from "../support/fixtures.ts";
  * asserts the exact code for every at-rule the target table names, and proves
  * the three tiers are disjoint rather than checking them one at a time.
  *
- * Association is the next-sibling half of the rule the parser selection
+ * This suite covers the next-sibling half of the rule the parser selection
  * record describes. The previous-sibling half, which carries declaration
- * probes, is CSSC-007, so a trailing comment on a declaration is left alone
- * here rather than being reported as having no target.
+ * probes, is specified in declaration-association.test.ts.
  */
 
 const FIXTURE_URL = fixtureUrl("inline");
@@ -137,21 +136,15 @@ test("a nested style rule is a target like any other", () => {
   );
 });
 
-test("a trailing declaration annotation is left for CSSC-007 rather than reported", () => {
+test("a trailing declaration annotation attaches to its declaration", () => {
+  // The previous-sibling half of the association rule, specified in full by
+  // declaration-association.test.ts. Asserted here only so the two halves are
+  // visibly one pass over the same comments rather than two features.
   const result = associate(`.card {
   color: red; /* css-console: log */
 }`);
 
-  expect(result.annotations).toHaveLength(0);
-  expect(result.diagnostics).toEqual([]);
-});
-
-test("a trailing annotation on a declaration with the semicolon omitted is left alone too", () => {
-  const result = associate(`.a {
-  color: red /* css-console: log */
-}`);
-
-  expect(result.annotations).toHaveLength(0);
+  expect(result.annotations.map((associated) => associated.target.kind)).toEqual(["declaration"]);
   expect(result.diagnostics).toEqual([]);
 });
 
@@ -294,15 +287,19 @@ test("the representative fixture associates its rule and function probes", () =>
   const { css, url } = loadFixture("representative", "card-components");
   const result = associateAnnotations(css, { url });
 
-  const targets = result.annotations.map((associated) =>
-    associated.target.kind === "function"
-      ? `function ${associated.target.functionName}`
-      : `rule ${associated.target.selector}`,
-  );
+  const targets = result.annotations.map((associated) => {
+    const { target } = associated;
 
-  // The third annotation in the fixture is a trailing declaration probe,
-  // which CSSC-007 owns, so it is absent here rather than reported.
-  expect(targets).toEqual(["function --space", "rule .card"]);
+    if (target.kind === "function") {
+      return `function ${target.functionName}`;
+    }
+
+    return target.kind === "declaration"
+      ? `declaration ${target.property}`
+      : `rule ${target.selector}`;
+  });
+
+  expect(targets).toEqual(["function --space", "rule .card", "declaration color"]);
   expect(result.diagnostics).toEqual([]);
 });
 
@@ -324,13 +321,14 @@ test("the hardening fixture reports one diagnostic per at-rule tier case", () =>
   ]);
 });
 
-test("the omitted-semicolon hardening fixture reports only its separated annotation", () => {
+test("the omitted-semicolon hardening fixture attaches one probe and reports one annotation", () => {
   const { css, url } = loadFixture("hardening", "omitted-semicolon");
   const result = associateAnnotations(css, { url });
 
-  // The .a rule's trailing annotation belongs to CSSC-007. The .separated
-  // rule's annotation is held off its target by an unrelated comment.
-  expect(result.annotations).toHaveLength(0);
+  // The .a rule's trailing annotation attaches to its declaration. The
+  // .separated rule's annotation is held off its target by an unrelated
+  // comment, which is what that fixture exists to prove.
+  expect(result.annotations.map((associated) => associated.target.kind)).toEqual(["declaration"]);
   expect(codes(result)).toEqual(["NO_TARGET"]);
 });
 
