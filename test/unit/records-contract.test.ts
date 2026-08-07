@@ -164,6 +164,7 @@ export type ContractAssertions = [
 
   // The function record discriminant, fields, and field types match the contract.
   Expect<Equal<FunctionRecord<string>["kind"], "function">>,
+  Expect<Equal<FunctionRecord<string>["logLevel"], LogLevel>>,
   Expect<Equal<FunctionRecord<string>["functionName"], string>>,
   Expect<Equal<FunctionRecord<string>["definition"], SourceLocation>>,
   Expect<Equal<FunctionRecord<string>["callSite"], CallSite>>,

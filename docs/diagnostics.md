@@ -26,7 +26,7 @@ This diagnostic fires when a linked stylesheet fails to load. It tells you that 
 
 ## SOURCE_HTTP_ERROR
 
-This diagnostic fires when a linked stylesheet's request completes but the response carries an HTTP error status. Unlike `SOURCE_LOAD_FAILED`, this failure is distinguishable: the request reached the server and the server answered. It tells you the resource was reachable, and that css-console rejected it because the response status reports an error rather than success. Check that the URL is correct, that the resource exists at that URL, and what the reported status says about why the server refused it.
+This diagnostic fires when a linked stylesheet's request completes but the response carries an HTTP error status. Unlike `SOURCE_LOAD_FAILED`, this failure is distinguishable: the request reached the server and the server answered. It tells you the resource was reachable, and that css-console rejected it because the response status reports an error rather than success. Check that the URL is correct, that the resource exists at that URL, and what the reported status indicates about the request or the resource.
 
 ## NO_TARGET
 
