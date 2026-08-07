@@ -63,6 +63,8 @@ const EXPECTED_DEFINITIONS = {
   NO_CALL_SITES: { severity: "info", category: "informational" },
   MISSING_REQUESTED_PROPERTY: { severity: "warning", category: "annotation" },
   REPEATED_DECLARATION: { severity: "info", category: "informational" },
+  DEFERRED_PSEUDO_ELEMENT: { severity: "warning", category: "deferred" },
+  MALFORMED_SELECTOR_LIST: { severity: "error", category: "annotation" },
 } as const;
 
 const EXPECTED_CODES = Object.keys(EXPECTED_DEFINITIONS).sort();
@@ -249,7 +251,7 @@ export type RegistryTypeAssertions = [
     >
   >,
 
-  // The code type is exactly the union of the fourteen dictated code names.
+  // The code type is exactly the union of the dictated code names.
   Expect<
     Equal<
       DiagnosticCode,
@@ -269,6 +271,8 @@ export type RegistryTypeAssertions = [
       | "NO_CALL_SITES"
       | "MISSING_REQUESTED_PROPERTY"
       | "REPEATED_DECLARATION"
+      | "DEFERRED_PSEUDO_ELEMENT"
+      | "MALFORMED_SELECTOR_LIST"
     >
   >,
 
