@@ -88,6 +88,21 @@ test("parses a property list with whitespace around the commas", () => {
   expect(annotation.properties).toEqual(["padding", "background-color", "margin-block"]);
 });
 
+test("tolerates a trailing comma rather than yielding an empty property name", () => {
+  const annotation = expectAccepted(parseAnnotation("css-console: log padding,margin,"));
+
+  expect(annotation.properties).toEqual(["padding", "margin"]);
+});
+
+test("a trailing comma does not swallow the option that follows it", () => {
+  const annotation = expectAccepted(
+    parseAnnotation('css-console: log padding,margin, label="cards"'),
+  );
+
+  expect(annotation.properties).toEqual(["padding", "margin"]);
+  expect(annotation.label).toBe("cards");
+});
+
 test("parses custom properties in a property list", () => {
   const annotation = expectAccepted(parseAnnotation("css-console: log --brand,--space"));
 

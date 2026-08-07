@@ -81,16 +81,43 @@ export type ParseAnnotationOptions = {
 type Token = { name: string; value: string } | { name: null; value: string };
 
 /**
- * Splits the annotation body into tokens, treating a quoted string as one
- * atom and gluing segments joined by a comma back together, so that both
- * `padding,margin` and `padding , margin` read as a single property list
- * rather than as several tokens.
+ * Reports whether a raw token carries an `=` outside quotes, which is what
+ * makes it a named option rather than part of a property list. A quoted label
+ * value may itself contain an `=`, so the scan has to respect quoting.
  */
-function tokenize(body: string): string[] {
+function isOption(raw: string): boolean {
+  let quote: string | null = null;
+
+  for (const character of raw) {
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+
+    if (character === "=") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Splits the annotation body on whitespace, treating a quoted string as one
+ * atom so that a label value containing spaces survives as a single token.
+ */
+function split(body: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let quote: string | null = null;
-  let pendingComma = false;
 
   for (const character of body) {
     if (quote !== null) {
@@ -109,22 +136,8 @@ function tokenize(body: string): string[] {
       continue;
     }
 
-    if (character === ",") {
-      if (current === "") {
-        // Whitespace already ended the previous token, so take it back: the
-        // comma proves it was one list rather than two tokens.
-        current = tokens.pop() ?? "";
-      }
-
-      current += character;
-      pendingComma = true;
-      continue;
-    }
-
     if (/\s/.test(character)) {
-      // Whitespace ends a token only when no comma is waiting to be joined,
-      // so a list broken across spaces stays one token.
-      if (current !== "" && !pendingComma) {
+      if (current !== "") {
         tokens.push(current);
         current = "";
       }
@@ -132,12 +145,38 @@ function tokenize(body: string): string[] {
       continue;
     }
 
-    pendingComma = false;
     current += character;
   }
 
   if (current !== "") {
     tokens.push(current);
+  }
+
+  return tokens;
+}
+
+/**
+ * Splits the annotation body into tokens, rejoining segments a comma holds
+ * together so that `padding,margin`, `padding , margin`, and `padding,
+ * margin` all read as one property list rather than as several tokens.
+ *
+ * A comma never pulls in a named option, so a list left with a trailing
+ * comma, as in `padding,margin, label="cards"`, keeps the label separate
+ * rather than swallowing it into the property list.
+ */
+function tokenize(body: string): string[] {
+  const tokens: string[] = [];
+
+  for (const raw of split(body)) {
+    const previous = tokens.at(-1);
+    const joins = previous !== undefined && (previous.endsWith(",") || raw.startsWith(","));
+
+    if (joins && !isOption(raw) && !isOption(previous)) {
+      tokens[tokens.length - 1] = previous + raw;
+      continue;
+    }
+
+    tokens.push(raw);
   }
 
   return tokens;
