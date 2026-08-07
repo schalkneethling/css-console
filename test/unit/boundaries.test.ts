@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -39,6 +39,11 @@ function createWorkspaceCopy(): string {
   // The compiler resolves the module format of each file from the nearest
   // package.json, so the copy needs one that matches the real project.
   writeFileSync(join(workspace, "package.json"), '{ "type": "module" }\n');
+
+  // Core imports postcss, the one package the parser selection record admits
+  // through the source import boundary, so the copy needs the real installed
+  // tree to resolve it. A link rather than a copy keeps the case fast.
+  symlinkSync(join(projectRoot, "node_modules"), join(workspace, "node_modules"), "junction");
 
   return workspace;
 }

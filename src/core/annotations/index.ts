@@ -22,6 +22,14 @@
  * every prose comment in the stylesheet.
  */
 
+export { associateAnnotations } from "./associate.ts";
+export type {
+  AnnotationTarget,
+  AssociateAnnotationsOptions,
+  AssociatedAnnotation,
+  AssociationResult,
+} from "./associate.ts";
+
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
 import type { LogLevel, SourceLocation } from "../records/index.ts";
