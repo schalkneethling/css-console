@@ -1,0 +1,38 @@
+/* css-console: log padding,background-color label="card surface" */
+.card {
+  background-color: white;
+  padding: 1rem;
+
+  /* css-console: log color label="card title" */
+  .card__title {
+    color: rgb(20 20 20);
+    font-size: 1.25rem;
+  }
+
+  > .card__media {
+    aspect-ratio: 16 / 9;
+  }
+
+  &:hover {
+    background-color: rgb(245 245 245);
+  }
+
+  @media (min-width: 40rem) {
+    /* css-console: info label="wide card body" */
+    .card__body {
+      display: grid;
+      gap: 1rem;
+    }
+  }
+
+  /* Declarations may follow nested rules, and their order relative to those
+     rules is preserved. CSS Nesting section 3.4. */
+  border-radius: 0.5rem; /* css-console: log label="card radius" */
+}
+
+.card__title,
+.card__subtitle {
+  .badge {
+    font-size: 0.75rem;
+  }
+}

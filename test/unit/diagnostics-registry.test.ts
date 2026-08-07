@@ -65,6 +65,8 @@ const EXPECTED_DEFINITIONS = {
   REPEATED_DECLARATION: { severity: "info", category: "informational" },
   DEFERRED_PSEUDO_ELEMENT: { severity: "warning", category: "deferred" },
   MALFORMED_SELECTOR_LIST: { severity: "error", category: "annotation" },
+  INVALID_NESTING_SELECTOR: { severity: "error", category: "annotation" },
+  DEFERRED_SCOPE_NESTING: { severity: "warning", category: "deferred" },
 } as const;
 
 const EXPECTED_CODES = Object.keys(EXPECTED_DEFINITIONS).sort();
@@ -273,6 +275,8 @@ export type RegistryTypeAssertions = [
       | "REPEATED_DECLARATION"
       | "DEFERRED_PSEUDO_ELEMENT"
       | "MALFORMED_SELECTOR_LIST"
+      | "INVALID_NESTING_SELECTOR"
+      | "DEFERRED_SCOPE_NESTING"
     >
   >,
 
