@@ -61,6 +61,8 @@ const EXPECTED_DEFINITIONS = {
   PROPERTY_LIST_ON_DECLARATION_PROBE: { severity: "error", category: "annotation" },
   PROPERTY_LIST_ON_FUNCTION_PROBE: { severity: "error", category: "annotation" },
   NO_CALL_SITES: { severity: "info", category: "informational" },
+  MISSING_REQUESTED_PROPERTY: { severity: "warning", category: "annotation" },
+  REPEATED_DECLARATION: { severity: "info", category: "informational" },
 } as const;
 
 const EXPECTED_CODES = Object.keys(EXPECTED_DEFINITIONS).sort();
@@ -265,6 +267,8 @@ export type RegistryTypeAssertions = [
       | "PROPERTY_LIST_ON_DECLARATION_PROBE"
       | "PROPERTY_LIST_ON_FUNCTION_PROBE"
       | "NO_CALL_SITES"
+      | "MISSING_REQUESTED_PROPERTY"
+      | "REPEATED_DECLARATION"
     >
   >,
 
