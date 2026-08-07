@@ -18,7 +18,7 @@ This diagnostic fires when an annotation precedes an at-rule that css-console do
 
 ## WATCH_RESERVED
 
-This diagnostic fires when an annotation names the `watch` level. It tells you that `watch` is reserved for a future live mode and is not evaluated in this release. Use `log`, `info`, `warn`, or `error` instead.
+This diagnostic fires when an annotation names the `watch` log level. It tells you that `watch` is reserved for a future live mode and is not evaluated in this release. Use `log`, `info`, `warn`, or `error` instead.
 
 ## SOURCE_LOAD_FAILED
 
@@ -32,9 +32,9 @@ This diagnostic fires when a linked stylesheet's request completes but the respo
 
 This diagnostic fires when a css-console annotation comment has nothing to attach to: no style rule, no `@function` definition, and no declaration follows it in a position the grammar recognizes. It tells you the annotation is orphaned. Place it immediately before a style rule or an `@function` at-rule, or as a trailing comment after a declaration on the same line.
 
-## UNKNOWN_LEVEL
+## UNKNOWN_LOG_LEVEL
 
-This diagnostic fires when an annotation names a level outside the valid set `log`, `info`, `warn`, and `error`. It tells you the annotation was rejected before compilation. Replace the level with one of the four valid names.
+This diagnostic fires when an annotation names a log level outside the valid set `log`, `info`, `warn`, and `error`. It tells you the annotation was rejected before compilation. Replace the log level with one of the four valid names.
 
 ## UNKNOWN_OPTION
 

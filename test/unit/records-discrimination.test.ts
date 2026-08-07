@@ -50,7 +50,7 @@ const sampleProbeValue: ProbeValue = {
 const baseValueRecord: ValueRecord<string> = {
   kind: "value",
   probeId: "probe-1",
-  level: "log",
+  logLevel: "log",
   selector: ".card",
   target: "the-target",
   pseudo: null,
@@ -62,7 +62,7 @@ const baseValueRecord: ValueRecord<string> = {
 const sampleFunctionRecord: FunctionRecord<string> = {
   kind: "function",
   probeId: "probe-2",
-  level: "log",
+  logLevel: "log",
   functionName: "--space",
   definition: sampleLocation,
   callSite: {

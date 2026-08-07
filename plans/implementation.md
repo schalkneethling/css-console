@@ -113,7 +113,7 @@ As a CSS author, I can annotate the function, declaration, or rule whose compute
 ### 3.2 v0 syntax
 
 ```text
-css-console: <level> [property-list] [label="..."]
+css-console: <log-level> [property-list] [label="..."]
 ```
 
 The directive is the literal `css-console`. The colon is required. There is no alias and no configuration in v0.
@@ -227,7 +227,7 @@ type ProbeValue = {
 type ValueRecord<TTarget> = {
   kind: "value";
   probeId: string;
-  level: LogLevel;
+  logLevel: LogLevel;
   label?: string;
   selector: string;
   target: TTarget;
@@ -255,7 +255,7 @@ type CallSite = {
 type FunctionRecord<TTarget> = {
   kind: "function";
   probeId: string;
-  level: LogLevel;
+  logLevel: LogLevel;
   label?: string;
   functionName: string;
   definition: SourceLocation;
@@ -654,7 +654,7 @@ Exhaustiveness is not in tension with realism, because the two apply to differen
 - Every diagnostic code has at least one fixture that triggers it.
 - Every public field has at least one positive and one negative case.
 - Every expansion table has a fixture asserting its complete key set, so that additions are caught.
-- Every supported pseudo-element, level, probe kind, and rule context has its own fixture.
+- Every supported pseudo-element, log level, probe kind, and rule context has its own fixture.
 - Every defect gains a regression fixture before the fix.
 
 Where a specification provides examples, those examples are used directly, and where Web Platform Tests cover a behavior, a representative subset is mirrored.
@@ -780,7 +780,7 @@ Labels: `phase-1`, `core`, `parser`
 
 **Review question**: does the grammar accept exactly the intended annotations?
 
-Red cases: all four levels; comma-separated properties; quoted labels containing spaces; whitespace variations; a missing colon must not parse; ordinary prose comments must not parse; missing level; unknown level; unknown option; duplicate option; reserved `watch`.
+Red cases: all four log levels; comma-separated properties; quoted labels containing spaces; whitespace variations; a missing colon must not parse; ordinary prose comments must not parse; missing log level; unknown log level; unknown option; duplicate option; reserved `watch`.
 
 ### CSSC-006 — Associate rule and at-rule annotations
 
@@ -994,7 +994,7 @@ Labels: `phase-4`, `console`, `ux`
 
 **Review question**: does the adapter render legibly at scale?
 
-Red: level-to-method mapping; a `groupCollapsed()` title carrying label, selector, and source location; a live element passed as an argument in every record; authored and resolved fields; a single element renders as a group; many elements render through `console.table()`; a color value renders a `%c` swatch alongside its text; a truncation summary; scan duration through `console.time()`.
+Red: log-level-to-method mapping; a `groupCollapsed()` title carrying label, selector, and source location; a live element passed as an argument in every record; authored and resolved fields; a single element renders as a group; many elements render through `console.table()`; a color value renders a `%c` swatch alongside its text; a truncation summary; scan duration through `console.time()`.
 
 Acceptance: the table is legible at fifty rows; no information exists only in styling; adapter failure cannot break scanning; `console` is never wrapped, replaced, or intercepted.
 
@@ -1249,7 +1249,7 @@ it("parses a log annotation", () => {
 
   expect(result).toEqual({
     ok: true,
-    annotation: { level: "log", properties: [], label: undefined },
+    annotation: { logLevel: "log", properties: [], label: undefined },
   });
 });
 ```

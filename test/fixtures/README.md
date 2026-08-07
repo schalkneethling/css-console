@@ -16,7 +16,7 @@ Realism governs what a fixture looks like. Exhaustiveness governs how many of th
 - Every diagnostic code gains at least one fixture that triggers it, as the issues that exercise each code land.
 - Every public field gains at least one positive and one negative case.
 - Every expansion table gains a fixture asserting its complete key set, so that additions are caught.
-- Every supported pseudo-element, level, probe kind, and rule context gains its own fixture.
+- Every supported pseudo-element, log level, probe kind, and rule context gains its own fixture.
 - Every defect gains a regression fixture before the fix.
 
 Where a specification provides examples, those examples are used directly, and where Web Platform Tests cover a behavior, a representative subset is mirrored.

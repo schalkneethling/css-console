@@ -106,7 +106,7 @@ export const DIAGNOSTIC_REGISTRY = {
     "WATCH_RESERVED",
     "warning",
     "deferred",
-    "The watch level is reserved until live mode ships and is not evaluated in this release. Use log, info, warn, or error instead.",
+    "The watch log level is reserved until live mode ships and is not evaluated in this release. Use log, info, warn, or error instead.",
   ),
   SOURCE_LOAD_FAILED: defineDiagnostic(
     "SOURCE_LOAD_FAILED",
@@ -126,11 +126,11 @@ export const DIAGNOSTIC_REGISTRY = {
     "annotation",
     "This annotation has nothing to attach to. Place it immediately before a style rule or an @function at-rule, or as a trailing comment after a declaration.",
   ),
-  UNKNOWN_LEVEL: defineDiagnostic(
-    "UNKNOWN_LEVEL",
+  UNKNOWN_LOG_LEVEL: defineDiagnostic(
+    "UNKNOWN_LOG_LEVEL",
     "error",
     "annotation",
-    "This annotation names a level outside the valid set log, info, warn, and error. Use one of those four levels.",
+    "This annotation names a log level outside the valid set log, info, warn, and error. Use one of those four log levels.",
   ),
   UNKNOWN_OPTION: defineDiagnostic(
     "UNKNOWN_OPTION",

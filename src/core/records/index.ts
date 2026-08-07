@@ -10,8 +10,8 @@
  */
 
 /**
- * The four levels a probe can log at, mapping directly onto the
- * corresponding Console API methods. Levels carry no assertion or
+ * The four log levels a probe can report at, mapping directly onto the
+ * corresponding Console API methods. Log levels carry no assertion or
  * control-flow semantics.
  */
 export type LogLevel = "log" | "info" | "warn" | "error";
@@ -56,7 +56,7 @@ export type ProbeValue = {
 export type ValueRecord<TTarget> = {
   kind: "value";
   probeId: string;
-  level: LogLevel;
+  logLevel: LogLevel;
   label?: string;
   selector: string;
   target: TTarget;
@@ -94,7 +94,7 @@ export type CallSite = {
 export type FunctionRecord<TTarget> = {
   kind: "function";
   probeId: string;
-  level: LogLevel;
+  logLevel: LogLevel;
   label?: string;
   functionName: string;
   definition: SourceLocation;
