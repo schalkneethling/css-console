@@ -67,3 +67,11 @@ This diagnostic fires when a rule probe's property list names a property the rul
 ## REPEATED_DECLARATION
 
 This diagnostic fires when a property a rule probe covers is declared more than once in the same rule. It carries informational severity rather than warning or error severity, because the repeat is not a mistake in the annotation: the probe reports the last authored value, which is what the cascade resolves to within one rule. Check the rule if the repeat was unintentional.
+
+## DEFERRED_PSEUDO_ELEMENT
+
+This diagnostic fires when a branch of an annotated rule's selector carries a pseudo-element css-console does not probe in v0: `::part()` and `::slotted()`, which need shadow DOM, a chain such as `::before::marker`, a pseudo-element followed by anything else such as `::before:hover`, and any pseudo-element outside the supported set of `::before`, `::after`, `::marker`, `::first-line`, `::first-letter`, `::placeholder`, `::selection`, and `::backdrop`. It tells you the limitation is a tool-scope decision rather than a browser gap: the selector is valid CSS the browser applies, and only css-console's probe is postponed. The branch is skipped and the other branches of the same selector still report, so a rule listing both `.badge` and `.badge::part(label)` still reports `.badge`. The legacy single-colon spellings `:before`, `:after`, `:first-line`, and `:first-letter` are supported and do not fire this diagnostic; they are normalised to the double-colon form.
+
+## MALFORMED_SELECTOR_LIST
+
+This diagnostic fires when an annotated rule's selector list contains an empty branch, as in `.a, , .b` or a list left with a trailing comma. It carries error severity, and no branch of the list is probed at all. That is not a stricter reading than the browser's: a selector list is not forgiving, so one empty branch invalidates the entire list and the browser discards the whole rule, which means none of the branches that look well formed ever apply to anything either. Reporting them would attribute computed values to a rule that never ran. Remove the stray comma.

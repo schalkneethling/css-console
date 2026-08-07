@@ -12,7 +12,14 @@
  * CSS nesting lets a rule contain further rules as children, and a probe on
  * the outer rule is not a probe on the inner ones; those are their own
  * targets, resolved separately by nesting resolution (CSSC-010).
+ *
+ * The other half of compiling a rule probe is its selector, which splits into
+ * independently matched branches. That lives in ./selector.ts and is
+ * re-exported here, so that the compiler presents one entry point.
  */
+
+export { splitSelectorBranches } from "./selector.ts";
+export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 
 import type { Declaration, Root, Rule } from "postcss";
 

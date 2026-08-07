@@ -180,6 +180,18 @@ export const DIAGNOSTIC_REGISTRY = {
     "informational",
     "A property covered by a rule probe is declared more than once in the rule. The last authored value is reported, matching how the cascade resolves repeats within one rule.",
   ),
+  DEFERRED_PSEUDO_ELEMENT: defineDiagnostic(
+    "DEFERRED_PSEUDO_ELEMENT",
+    "warning",
+    "deferred",
+    "A selector branch carries a pseudo-element css-console postponed, such as ::part(), ::slotted(), or a pseudo-element chain. The branch is skipped and the remaining branches of the selector still compile.",
+  ),
+  MALFORMED_SELECTOR_LIST: defineDiagnostic(
+    "MALFORMED_SELECTOR_LIST",
+    "error",
+    "annotation",
+    "The annotated rule's selector list contains an empty branch, which makes the whole list invalid, so the browser discards the rule. Remove the stray comma.",
+  ),
 } as const;
 
 /**
