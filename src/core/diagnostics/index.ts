@@ -192,6 +192,18 @@ export const DIAGNOSTIC_REGISTRY = {
     "annotation",
     "The annotated rule's selector list contains an empty branch, which makes the whole list invalid, so the browser discards the rule. Remove the stray comma.",
   ),
+  INVALID_NESTING_SELECTOR: defineDiagnostic(
+    "INVALID_NESTING_SELECTOR",
+    "error",
+    "annotation",
+    "A nested selector places something after the nesting selector that cannot continue a compound selector, most often a type selector as in &Bar. A type selector must come first in its compound selector, so the browser discards the whole rule. Write Bar& instead, remembering that nesting matches the elements the parent selector matches rather than joining names.",
+  ),
+  DEFERRED_SCOPE_NESTING: defineDiagnostic(
+    "DEFERRED_SCOPE_NESTING",
+    "warning",
+    "deferred",
+    "A rule inside @scope resolves against the scoping root rather than against an ancestor rule's selector, and a scoping root cannot be written into a flat selector. css-console postponed @scope, so this rule is not resolved and no record is produced for it.",
+  ),
 } as const;
 
 /**
