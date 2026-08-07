@@ -1,0 +1,18 @@
+/**
+ * Hardening fixture for two boundary cases. The .a rule reproduces the
+ * decisive parser case from docs/decisions/0013-parser-selection-postcss.md:
+ * a trailing annotation on a final declaration whose semicolon is omitted.
+ * The rule probe annotation before .separated reproduces the CSSC-005 red
+ * case where an unrelated comment sits between the annotation and its
+ * target, which prevents attachment.
+ */
+
+.a {
+  color: red /* css-console: log */
+}
+
+/* css-console: warn label="separated by an unrelated comment" */
+/* an unrelated comment sits between this annotation and its target */
+.separated {
+  inline-size: calc(50cqi - 1rem);
+}

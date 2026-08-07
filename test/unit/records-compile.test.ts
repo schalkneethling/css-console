@@ -82,7 +82,7 @@ const probeValue: ProbeValue = {
 export const valueRecord: ValueRecord<string> = {
   kind: "value",
   probeId: "probe-1",
-  level: "log",
+  logLevel: "log",
   label: "brand color",
   selector: ".card",
   target: "the-target",
@@ -95,7 +95,7 @@ export const valueRecord: ValueRecord<string> = {
 export const functionRecord: FunctionRecord<string> = {
   kind: "function",
   probeId: "probe-2",
-  level: "log",
+  logLevel: "log",
   label: "space scale",
   functionName: "--space",
   definition: location,

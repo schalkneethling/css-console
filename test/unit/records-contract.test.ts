@@ -67,7 +67,7 @@ const sampleCallSite: CallSite = {
 const sampleValueRecord: ValueRecord<string> = {
   kind: "value",
   probeId: "probe-1",
-  level: "log",
+  logLevel: "log",
   label: "brand color",
   selector: ".card",
   target: "the-target",
@@ -80,7 +80,7 @@ const sampleValueRecord: ValueRecord<string> = {
 const sampleFunctionRecord: FunctionRecord<string> = {
   kind: "function",
   probeId: "probe-2",
-  level: "log",
+  logLevel: "log",
   label: "space scale",
   functionName: "--space",
   definition: sampleLocation,
@@ -155,7 +155,7 @@ export type ContractAssertions = [
   // The value record discriminant, fields, and field types match the contract.
   Expect<Equal<ValueRecord<string>["kind"], "value">>,
   Expect<Equal<ValueRecord<string>["probeId"], string>>,
-  Expect<Equal<ValueRecord<string>["level"], LogLevel>>,
+  Expect<Equal<ValueRecord<string>["logLevel"], LogLevel>>,
   Expect<Equal<ValueRecord<string>["selector"], string>>,
   Expect<Equal<ValueRecord<string>["pseudo"], string | null>>,
   Expect<Equal<ValueRecord<string>["source"], SourceLocation>>,
@@ -164,6 +164,7 @@ export type ContractAssertions = [
 
   // The function record discriminant, fields, and field types match the contract.
   Expect<Equal<FunctionRecord<string>["kind"], "function">>,
+  Expect<Equal<FunctionRecord<string>["logLevel"], LogLevel>>,
   Expect<Equal<FunctionRecord<string>["functionName"], string>>,
   Expect<Equal<FunctionRecord<string>["definition"], SourceLocation>>,
   Expect<Equal<FunctionRecord<string>["callSite"], CallSite>>,
@@ -215,7 +216,7 @@ export type ContractAssertions = [
 const valueRecordWithoutLabel: ValueRecord<string> = {
   kind: "value",
   probeId: "probe-1",
-  level: "log",
+  logLevel: "log",
   selector: ".card",
   target: "the-target",
   pseudo: null,
@@ -245,7 +246,7 @@ const diagnosticWithOptionalFields: Diagnostic = {
 // @ts-expect-error the probeId field is required
 const valueRecordMissingProbeId: ValueRecord<string> = {
   kind: "value",
-  level: "log",
+  logLevel: "log",
   selector: ".card",
   target: "the-target",
   pseudo: null,

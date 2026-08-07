@@ -1,0 +1,22 @@
+:root {
+  --space-unit: 0.25rem;
+  --brand: oklch(55% 0.18 250);
+  --surface: white;
+}
+
+/* css-console: log label="spacing scale" */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * var(--space-unit));
+}
+
+/* css-console: log padding,background-color label="cards" */
+.card {
+  padding: --space(4);
+  background-color: color-mix(in oklch, var(--brand) 60%, var(--surface));
+  border-radius: --space(2);
+}
+
+.card__title {
+  font-weight: 600;
+  color: var(--brand); /* css-console: info label="card title color" */
+}
