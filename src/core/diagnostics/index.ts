@@ -132,11 +132,23 @@ export const DIAGNOSTIC_REGISTRY = {
     "annotation",
     "This annotation names a log level outside the valid set log, info, warn, and error. Use one of those four log levels.",
   ),
+  MISSING_LOG_LEVEL: defineDiagnostic(
+    "MISSING_LOG_LEVEL",
+    "error",
+    "annotation",
+    "This annotation names no log level. The log level is required and must be one of log, info, warn, and error.",
+  ),
   UNKNOWN_OPTION: defineDiagnostic(
     "UNKNOWN_OPTION",
     "error",
     "annotation",
     "This annotation names an option the grammar does not define. The valid options are a property list and label.",
+  ),
+  DUPLICATE_OPTION: defineDiagnostic(
+    "DUPLICATE_OPTION",
+    "error",
+    "annotation",
+    "This annotation names the same option twice. Each option may appear at most once, so the intended value cannot be determined.",
   ),
   PROPERTY_LIST_ON_DECLARATION_PROBE: defineDiagnostic(
     "PROPERTY_LIST_ON_DECLARATION_PROBE",
