@@ -83,3 +83,7 @@ This diagnostic fires when a nested rule places something after the nesting sele
 ## DEFERRED_SCOPE_NESTING
 
 This diagnostic fires when a rule sits inside `@scope`. It tells you the limitation is a tool-scope decision rather than a browser gap or invalid CSS. Inside `@scope` the nesting selector means something else: it behaves as `:where(:scope)`, and a nested rule with no nesting selector is prefixed with `:scope` rather than with the ancestor rule's selector. Both meanings depend on the scoping root, which cannot be written into the flat selector `querySelectorAll()` takes, so resolving as though `@scope` were absent would report values for elements the rule never styled. Move the annotation to a rule outside `@scope`, or wait for `@scope` support to land.
+
+## INVALID_FUNCTION_BODY_RULE
+
+This diagnostic fires when a style rule is authored inside an `@function` body, as in `@function --f() returns <color> { .inner { color: red; } result: blue; }`. It carries error severity, and the rule is not resolved at all, because the browser discards it: parsing that example in Chromium and reading the serialized `@function` rule back from the CSSOM shows `.inner` gone entirely, leaving only the empty body plus `result`. A function body declares custom properties, and may nest `@media` or `@supports` conditionals around further declarations, but a style rule has no element to match against inside a function, so there is nothing there for a probe to attach to. Move the rule outside the `@function` body.

@@ -340,10 +340,31 @@ const TRANSPARENT_GROUP_AT_RULES = new Set([
  * to resolve as though `@scope` were not there. The rule contexts issue owns
  * `@scope` support.
  */
-function nestingContextOf(rule: Rule): NestingContext {
-  let ancestor: Container | Document | undefined = rule.parent;
+/**
+ * Yields every ancestor of a node, from its immediate parent outward to the
+ * root, following the parent chain until it ends. `nestingContextOf()` below
+ * stops at the first ancestor it cares about, because a nesting selector's
+ * meaning is fixed by the nearest style rule or `@scope`. Rule-context
+ * compilation (CSSC-011) walks this identical chain to completion instead,
+ * because conditional and grouping at-rules stack past intervening style
+ * rules that nesting resolution treats as a stopping boundary: `@layer a {
+ * .card { @media … { &.active { } } } }` has `.active`'s context reach both
+ * `@layer` and `@media`, on either side of the `.card` rule nesting stops at.
+ * Sharing one generator is what keeps both modules walking the same chain
+ * rather than each maintaining its own, possibly diverging, notion of "the
+ * next ancestor."
+ */
+export function* ancestorsOf(node: Rule | AtRule): Generator<Container | Document> {
+  let ancestor: Container | Document | undefined = node.parent;
 
   while (ancestor !== undefined) {
+    yield ancestor;
+    ancestor = ancestor.parent;
+  }
+}
+
+function nestingContextOf(rule: Rule): NestingContext {
+  for (const ancestor of ancestorsOf(rule)) {
     if (ancestor.type === "rule") {
       return { kind: "nested", parent: ancestor as Rule };
     }
@@ -363,8 +384,6 @@ function nestingContextOf(rule: Rule): NestingContext {
     if (!TRANSPARENT_GROUP_AT_RULES.has(name)) {
       return { kind: "non-style", atRule };
     }
-
-    ancestor = atRule.parent;
   }
 
   return { kind: "top-level" };

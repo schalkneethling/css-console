@@ -21,6 +21,9 @@
 export { splitSelectorBranches } from "./selector.ts";
 export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 
+export { compileRuleContext } from "./rule-context.ts";
+export type { RuleContext, RuleContextEntry, RuleContextResolution } from "./rule-context.ts";
+
 import type { Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";

@@ -204,6 +204,12 @@ export const DIAGNOSTIC_REGISTRY = {
     "deferred",
     "A rule inside @scope resolves against the scoping root rather than against an ancestor rule's selector, and a scoping root cannot be written into a flat selector. css-console postponed @scope, so this rule is not resolved and no record is produced for it.",
   ),
+  INVALID_FUNCTION_BODY_RULE: defineDiagnostic(
+    "INVALID_FUNCTION_BODY_RULE",
+    "error",
+    "annotation",
+    "A style rule is authored inside an @function body. A function body declares custom properties, and may nest @media or @supports conditionals around further declarations, but a style rule has no matched element to apply to; the browser discards it entirely rather than keeping it. Move the rule outside the @function body.",
+  ),
 } as const;
 
 /**
