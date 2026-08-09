@@ -73,10 +73,87 @@ export type CompiledRuleProbeProperty = {
  * not prevent the others from compiling, which is why the diagnostic carries
  * warning severity rather than discarding the probe.
  */
-export type CompiledRuleProbe = {
-  properties: readonly CompiledRuleProbeProperty[];
-  diagnostics: readonly Diagnostic[];
-};
+export type CompiledRuleProbe =
+  | {
+      properties: readonly [CompiledRuleProbeProperty, ...CompiledRuleProbeProperty[]];
+      diagnostics: readonly Diagnostic[];
+    }
+  | {
+      properties: readonly [];
+      diagnostics: readonly [Diagnostic, ...Diagnostic[]];
+    };
+
+/**
+ * Explains why a declaration inside an at-rule cannot be probed, in terms of
+ * that at-rule rather than in one message covering all of them.
+ *
+ * `@page` is called out separately because it is the case an author is most
+ * likely to think should work, and the reason it does not is different. A
+ * page box is not an element, so there is no `getComputedStyle()` to call:
+ * the CSSOM exposes `CSSPageRule.style`, which is the declared style. That
+ * is not nothing, since Chromium serialises `margin: calc(1cm + 2mm)` there
+ * as `calc(45.3543px)`, but it cannot answer which page a `:left` rule
+ * actually applied to, which is the question worth asking. Probing it is
+ * recorded as deferred work rather than refused outright.
+ */
+function descriptorMessage(atRule: string): string {
+  if (atRule.toLowerCase() === "page") {
+    return (
+      "This declaration sits inside @page. A page box is not an element, so there is nothing " +
+      "to call getComputedStyle() on and no way to ask which page a :left or :right rule " +
+      "applied to. Probing @page is deferred rather than rejected; see the diagnostics " +
+      "documentation."
+    );
+  }
+
+  return (
+    `This declaration sits inside @${atRule}, which describes a font or a property ` +
+    "registration rather than styling an element. Its value is whatever the source says, " +
+    "because there is no element to resolve it against. Annotate the declaration that uses " +
+    "it on an element instead."
+  );
+}
+
+/**
+ * Builds a compiled probe, reporting `NO_PROBED_PROPERTIES` when compilation
+ * found no properties and had nothing else to say.
+ *
+ * The return type makes an empty probe carrying no diagnostics
+ * unrepresentable, and this is where that constraint is honoured. It is not
+ * type theatre: the shape had been produced three times by three different
+ * paths, each time silently, and twice it took a reviewer to notice. An
+ * annotation that yields neither a property nor a diagnostic is
+ * indistinguishable from one the compiler never reached, which is the worst
+ * thing a debugging tool can tell an author.
+ */
+function compiledProbe(
+  properties: readonly CompiledRuleProbeProperty[],
+  diagnostics: readonly Diagnostic[],
+  source: SourceLocation,
+  details?: Record<string, unknown>,
+): CompiledRuleProbe {
+  const [first, ...rest] = properties;
+
+  if (first !== undefined) {
+    return { properties: [first, ...rest], diagnostics };
+  }
+
+  const [firstDiagnostic, ...restDiagnostics] = diagnostics;
+
+  if (firstDiagnostic !== undefined) {
+    return { properties: [], diagnostics: [firstDiagnostic, ...restDiagnostics] };
+  }
+
+  return {
+    properties: [],
+    diagnostics: [
+      createDiagnostic(
+        "NO_PROBED_PROPERTIES",
+        details === undefined ? { source } : { source, details },
+      ),
+    ],
+  };
+}
 
 /**
  * Finds the matching close parenthesis for an open parenthesis whose
@@ -436,7 +513,7 @@ export function compileRuleProbeProperties(
     properties.push(compileProperty(winner, url));
   }
 
-  return { properties, diagnostics };
+  return compiledProbe(properties, diagnostics, target.source, { selector: target.selector });
 }
 
 /** The declaration target shape a declaration probe compiles from. */
@@ -513,11 +590,7 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
       properties: [],
       diagnostics: [
         createDiagnostic("OUTSIDE_SUPPORTED_TARGET_SET", {
-          message:
-            `This declaration sits inside @${(parent as AtRule).name}, which describes a font, ` +
-            "a property registration, or a page rather than styling an element. Its value is " +
-            "whatever the source says, because there is no element to resolve it against. " +
-            "Annotate the declaration that uses it on an element instead.",
+          message: descriptorMessage((parent as AtRule).name),
           source: locationOf(declaration, url),
           details: { property: declaration.prop, atRule: (parent as AtRule).name },
         }),
@@ -526,7 +599,7 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
   }
 
   if (parent === undefined || parent.type !== "rule") {
-    return { properties: [], diagnostics: [] };
+    return compiledProbe([], [], locationOf(declaration, url), { property: declaration.prop });
   }
 
   const rule = parent;
@@ -534,7 +607,9 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
   const context = compileRuleContext(rule as Rule, url);
 
   if (context.context === null) {
-    return { properties: [], diagnostics: context.diagnostics };
+    return compiledProbe([], context.diagnostics, locationOf(declaration, url), {
+      property: declaration.prop,
+    });
   }
 
   const diagnostics: Diagnostic[] = [];
@@ -551,5 +626,12 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
     );
   }
 
-  return { properties: [compileProperty(declaration, url)], diagnostics };
+  return compiledProbe(
+    [compileProperty(declaration, url)],
+    diagnostics,
+    locationOf(declaration, url),
+    {
+      property: declaration.prop,
+    },
+  );
 }

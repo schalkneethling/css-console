@@ -1145,6 +1145,7 @@ Acceptance: the changelog describes experimental status, the reserved-pending-su
 ### Engine-level, documented rather than built
 
 - **CSSC-130 — Developer tools capability proposal.** Develop `docs/capabilities.md` into a concrete proposal for the out-of-reach items, in particular function-body branch observation.
+- **CSSC-131 — `@page` probes.** Debugging a layout that renders wrongly on an odd or even page is a real need, and `:left`, `:right`, `:first`, and `:blank` are exactly the kind of conditional an author cannot evaluate by reading source. It is deferred rather than rejected because the mechanism this tool is built on does not reach it: a page box is not an element, so there is no `getComputedStyle()` call to make. What the CSSOM does expose is `CSSPageRule.style`, the declared style, and that is not nothing — verified in Chromium that `@page { margin: calc(1cm + 2mm) }` serialises there as `calc(45.3543px)`, so absolute arithmetic is already resolved. What it cannot answer is which page a given rule applied to, and margin at-rules such as `@top-center` carry `content` with counters that only exist during pagination. A useful `@page` probe therefore needs a different evaluation strategy than every other probe kind, most likely print preview or a paged-media capability that does not exist in any browser today. Record what is reachable through `CSSPageRule.style` in `docs/capabilities.md` alongside the reason the rest is not.
 
 ## 12. Recommended issue order
 
