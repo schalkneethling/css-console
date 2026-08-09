@@ -59,3 +59,27 @@ This diagnostic fires when an annotation preceding an `@function` definition car
 ## NO_CALL_SITES
 
 This diagnostic fires when an annotated function has zero call sites across the scanned sources. It carries informational severity rather than warning or error severity, because a function with no call sites is not a mistake in the annotation; it tells you that the function you are probing is unused in the sources css-console scanned, which is itself a useful debugging answer.
+
+## MISSING_REQUESTED_PROPERTY
+
+This diagnostic fires when a rule probe's property list names a property the rule does not declare. It carries warning rather than error severity, because the rest of the requested properties still compile and report; only the missing one is skipped. Check the property name for a typo, or confirm that the rule you annotated is the one that declares it.
+
+## REPEATED_DECLARATION
+
+This diagnostic fires when a property a rule probe covers is declared more than once in the same rule. It carries informational severity rather than warning or error severity, because the repeat is not a mistake in the annotation: the probe reports the last authored value, which is what the cascade resolves to within one rule. Check the rule if the repeat was unintentional.
+
+## DEFERRED_PSEUDO_ELEMENT
+
+This diagnostic fires when a branch of an annotated rule's selector carries a pseudo-element css-console does not probe in v0: `::part()` and `::slotted()`, which need shadow DOM, a chain such as `::before::marker`, a pseudo-element followed by anything else such as `::before:hover`, and any pseudo-element outside the supported set of `::before`, `::after`, `::marker`, `::first-line`, `::first-letter`, `::placeholder`, `::selection`, and `::backdrop`. It tells you the limitation is a tool-scope decision rather than a browser gap: the selector is valid CSS the browser applies, and only css-console's probe is postponed. The branch is skipped and the other branches of the same selector still report, so a rule listing both `.badge` and `.badge::part(label)` still reports `.badge`. The legacy single-colon spellings `:before`, `:after`, `:first-line`, and `:first-letter` are supported and do not fire this diagnostic; they are normalised to the double-colon form.
+
+## MALFORMED_SELECTOR_LIST
+
+This diagnostic fires when an annotated rule's selector list contains an empty branch, as in `.a, , .b` or a list left with a trailing comma. It carries error severity, and no branch of the list is probed at all. That is not a stricter reading than the browser's: a selector list is not forgiving, so one empty branch invalidates the entire list and the browser discards the whole rule, which means none of the branches that look well formed ever apply to anything either. Reporting them would attribute computed values to a rule that never ran. Remove the stray comma.
+
+## INVALID_NESTING_SELECTOR
+
+This diagnostic fires when a nested rule places something after the nesting selector that cannot continue a compound selector. The common case is the one the specification calls out by name: `&Bar` reads as string concatenation in a preprocessor, and in CSS it is invalid, because `Bar` is a type selector and a type selector must come first in its compound selector. It carries error severity, and the rule is not resolved at all, because the browser discards it: Chromium keeps `.foo { }` and drops the nested rule for `.foo { &Bar { } }`, and drops it for `.foo { &Bar, .baz { } }` too, so the well-formed branch beside it never applies to anything either. Write `Bar&` instead, and note that it does not mean what `&Bar` means in a preprocessor: nesting matches the elements the parent selector matches rather than joining the two names into one. The check applies only outside functional pseudo-classes, because a forgiving selector list absorbs the invalid argument on its own; Chromium keeps `.foo { :is(&div, .bar) { } }` and still matches `.bar`.
+
+## DEFERRED_SCOPE_NESTING
+
+This diagnostic fires when a rule sits inside `@scope`. It tells you the limitation is a tool-scope decision rather than a browser gap or invalid CSS. Inside `@scope` the nesting selector means something else: it behaves as `:where(:scope)`, and a nested rule with no nesting selector is prefixed with `:scope` rather than with the ancestor rule's selector. Both meanings depend on the scoping root, which cannot be written into the flat selector `querySelectorAll()` takes, so resolving as though `@scope` were absent would report values for elements the rule never styled. Move the annotation to a rule outside `@scope`, or wait for `@scope` support to land.

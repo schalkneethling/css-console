@@ -1,0 +1,179 @@
+/* Hardening: nested selector resolution.
+   The nested selectors in the first block mirror a representative subset of
+   the Web Platform Tests for CSS nesting, css/css-nesting/parsing.html, which
+   asserts the serialized selector of the inner rule under a parent of .foo.
+   The later blocks mirror css/css-nesting/implicit-nesting.html and the worked
+   examples in CSS Nesting section 3.2. Every rule here is CSS Chromium parses
+   and retains, checked rather than assumed, so resolution has to survive it
+   rather than the parser rejecting it first.
+
+   The whitespace is part of the fixture. Selector lists are kept on one line,
+   and one of them is written with no space after its commas, because that is
+   the tokenizer case WPT covers; auto-formatting would spread each list over
+   several lines and put the spaces back, which is why this file is excluded
+   from formatting in .prettierignore. */
+
+.foo {
+  color: rgb(10 10 10);
+
+  & {
+    color: rgb(11 11 11);
+  }
+
+  &.bar {
+    color: rgb(12 12 12);
+  }
+
+  & .bar {
+    color: rgb(13 13 13);
+  }
+
+  & > .bar {
+    color: rgb(14 14 14);
+  }
+
+  > .bar {
+    color: rgb(15 15 15);
+  }
+
+  > & .bar {
+    color: rgb(16 16 16);
+  }
+
+  + .bar & {
+    color: rgb(17 17 17);
+  }
+
+  + .bar, .baz, > .qux {
+    color: rgb(18 18 18);
+  }
+
+  .baz {
+    color: rgb(19 19 19);
+  }
+
+  .test > & .bar {
+    color: rgb(20 20 20);
+  }
+
+  .quux, .quux & {
+    color: rgb(21 21 21);
+  }
+
+  :is(.bar, .baz) {
+    color: rgb(22 22 22);
+  }
+
+  &:is(.bar, .baz) {
+    color: rgb(23 23 23);
+  }
+
+  :is(.bar, &.baz) {
+    color: rgb(24 24 24);
+  }
+
+  & .bar & .baz & .qux {
+    color: rgb(25 25 25);
+  }
+
+  && {
+    color: rgb(26 26 26);
+  }
+
+  div& {
+    color: rgb(27 27 27);
+  }
+
+  .cls& {
+    color: rgb(28 28 28);
+  }
+
+  [data-live]& {
+    color: rgb(29 29 29);
+  }
+
+  #main& {
+    color: rgb(30 30 30);
+  }
+
+  :hover& {
+    color: rgb(31 31 31);
+  }
+
+  :is(div)& {
+    color: rgb(32 32 32);
+  }
+
+  &:is(div) {
+    color: rgb(33 33 33);
+  }
+
+  & > section, & > article {
+    color: rgb(34 34 34);
+  }
+
+  :not(&) {
+    color: rgb(35 35 35);
+  }
+}
+
+/* WPT parsing.html: a selector list in both the inner and the outer rule. */
+.foo, .bar {
+  & + .baz, &.qux {
+    color: rgb(40 40 40);
+  }
+}
+
+/* WPT implicit-nesting.html: a mixed list of relative and non-relative
+   complex selectors, written without a space after each comma. */
+.card {
+  > .title,.body,+ .sibling {
+    color: rgb(50 50 50);
+  }
+}
+
+/* CSS Nesting section 3.2: three levels stack up. */
+figure {
+  margin: 0;
+
+  > figcaption {
+    background: rgb(60 60 60);
+
+    > p {
+      font-size: 0.9rem;
+    }
+  }
+}
+
+/* CSS Nesting section 3.2: an arbitrarily complex parent selector. */
+.ancestor .el {
+  .other-ancestor & {
+    color: rgb(70 70 70);
+  }
+}
+
+/* CSS Nesting section 4: the nesting selector cannot represent a
+   pseudo-element, so the pseudo-element branches of the parent list
+   contribute neither a match nor specificity. */
+.note, .note::before, .note::after {
+  color: rgb(80 80 80);
+
+  &:hover {
+    color: rgb(81 81 81);
+  }
+}
+
+/* A nested rule inside @media inside a rule, and a group rule nested twice. */
+.panel {
+  @media (min-width: 40rem) {
+    .title {
+      color: rgb(90 90 90);
+    }
+
+    @supports (color: rgb(0 0 0)) {
+      & > .body {
+        color: rgb(91 91 91);
+      }
+    }
+  }
+}

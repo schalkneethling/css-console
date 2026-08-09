@@ -1,0 +1,12 @@
+/* css-console: log color,padding,--brand,-webkit-transform,inset-block-start label="hardening: rule probe properties" */
+.widget {
+  padding: 1rem !important;
+  color: red;
+  color: var(--brand, var(--fallback, 2px solid black));
+  --brand: oklch(55% 0.18 250);
+  -webkit-transform: scale(1);
+
+  & .nested {
+    color: green;
+  }
+}

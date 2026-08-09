@@ -4,3 +4,10 @@
 # reintroduce the semicolon and defeat the fixture's purpose, so this file is
 # excluded from automatic formatting.
 test/fixtures/hardening/omitted-semicolon.css
+
+# The nesting hardening fixture keeps each selector list on one line, and one
+# of them omits the space after its commas, because both are the tokenizer
+# cases the Web Platform Tests for CSS nesting cover. Auto-formatting would
+# spread every list over several lines and restore the spaces, changing what
+# PostCSS reports as the rule's selector and defeating the fixture's purpose.
+test/fixtures/hardening/nested-selectors.css

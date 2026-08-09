@@ -2,12 +2,15 @@
  * Annotation association.
  *
  * This module answers one question per annotation comment: what does it
- * attach to? It implements the next-sibling half of the association rule the
- * parser selection record describes, which covers rule probes and function
- * probes. The previous-sibling half, which carries declaration probes, is
- * CSSC-007, so a trailing comment on a declaration is left untouched here
- * rather than reported as having no target: reporting it would be wrong, and
- * would have to be unreported one issue later.
+ * attach to? It implements both halves of the association rule the parser
+ * selection record describes. The next sibling carries rule probes and
+ * function probes; the previous sibling, on the annotation's own line,
+ * carries declaration probes.
+ *
+ * One pass over the comments serves both, which is what keeps the two rules
+ * from disagreeing about the same comment. A comment that trails a
+ * declaration is a declaration probe and is never also read as preceding
+ * whatever follows it.
  *
  * At-rule targets fall into three tiers, and the tiers are the reason this
  * module reports rather than simply skips. A browser gap, a tool-scope
@@ -17,7 +20,7 @@
  */
 
 import postcss from "postcss";
-import type { AnyNode, ChildNode, Comment, Container, Document, Root } from "postcss";
+import type { AnyNode, ChildNode, Comment, Container, Declaration, Document, Root } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic, DiagnosticCode } from "../diagnostics/index.ts";
@@ -47,11 +50,13 @@ const FUNCTION_AT_RULE = "function";
  * What an annotation attached to. A style rule carries its selector as
  * authored, because nesting resolution is CSSC-010 and an unresolved selector
  * is the honest thing to carry until then. A function carries the name the
- * call sites will be matched against.
+ * call sites will be matched against. A declaration carries the one property
+ * it names, which is why a declaration probe rejects a property list.
  */
 export type AnnotationTarget =
   | { kind: "style-rule"; selector: string; source: SourceLocation }
-  | { kind: "function"; functionName: string; source: SourceLocation };
+  | { kind: "function"; functionName: string; source: SourceLocation }
+  | { kind: "declaration"; property: string; source: SourceLocation };
 
 /**
  * One annotation paired with the target it attached to. `source` is the
@@ -116,31 +121,45 @@ function nextSibling(comment: Comment): ChildNode | undefined {
 }
 
 /**
- * Reports whether a comment trails a declaration on that declaration's own
- * end line, which makes it a declaration probe and therefore CSSC-007's to
- * associate. This is the previous-sibling half of the association rule, and
- * it is recognised here only so those comments can be left alone: this module
- * deliberately does not attach them.
+ * Returns the declaration a comment trails, or undefined when it trails none.
+ *
+ * This is the previous-sibling half of the association rule: the annotation
+ * must be the next non-whitespace token after the declaration's end position,
+ * on the same line as that end position. The end position is the terminating
+ * semicolon where one exists and the final token of the value where it does
+ * not, and PostCSS reports both the same way, so the omitted-semicolon case
+ * needs no handling of its own.
+ *
+ * Requiring the previous sibling to be the declaration is what makes "next
+ * token" true rather than approximately true: an unrelated comment between
+ * the declaration and the annotation takes that position instead, and the
+ * annotation no longer trails anything.
+ *
+ * The line comparison is what separates a probe from a comment about the
+ * declaration below it. A value spanning many lines still ends on one line,
+ * so a multi-line value needs no handling of its own either.
  */
-function trailsDeclaration(comment: Comment): boolean {
+function trailedDeclaration(comment: Comment): Declaration | undefined {
   const parent: Container | Document | undefined = comment.parent;
 
   if (parent === undefined) {
-    return false;
+    return undefined;
   }
 
   const previous = parent.nodes?.at(parent.index(comment) - 1);
 
   if (previous === undefined || previous.type !== "decl") {
-    return false;
+    return undefined;
   }
 
   const declarationEnd = previous.source?.end?.line;
   const commentStart = comment.source?.start?.line;
 
-  return (
-    declarationEnd !== undefined && commentStart !== undefined && declarationEnd === commentStart
-  );
+  if (declarationEnd === undefined || commentStart === undefined) {
+    return undefined;
+  }
+
+  return declarationEnd === commentStart ? previous : undefined;
 }
 
 /**
@@ -187,11 +206,11 @@ function codeForAtRule(rawName: string): DiagnosticCode | undefined {
  * Associates every annotation comment in one source with the target that
  * follows it.
  *
- * Comments that are not annotations are ignored, comments whose grammar the
- * parser rejects carry their diagnostic through with the comment's location
- * attached, and comments that trail a declaration are left for CSSC-007.
- * Everything else either attaches to a style rule or an `@function`
- * definition, or produces the diagnostic its target tier dictates.
+ * Comments that are not annotations are ignored, and comments whose grammar
+ * the parser rejects carry their diagnostic through with the comment's
+ * location attached. A comment that trails a declaration on that
+ * declaration's own line attaches to it; everything else attaches to the node
+ * that follows it, or produces the diagnostic its target dictates.
  */
 export function associateAnnotations(
   css: string,
@@ -214,13 +233,31 @@ export function associateAnnotations(
       return;
     }
 
-    if (trailsDeclaration(comment)) {
-      // A declaration probe. CSSC-007 owns the previous-sibling rule, so
-      // this comment is neither attached nor reported here.
+    const source = locationOf(comment, url);
+    const declaration = trailedDeclaration(comment);
+
+    if (declaration !== undefined) {
+      if (parsed.annotation.properties.length > 0) {
+        // A declaration probe already names its one property through its
+        // position in the source, so a property list cannot be honoured
+        // without guessing which of the two the author meant.
+        diagnostics.push(createDiagnostic("PROPERTY_LIST_ON_DECLARATION_PROBE", { source }));
+        return;
+      }
+
+      annotations.push({
+        annotation: parsed.annotation,
+        target: {
+          kind: "declaration",
+          property: declaration.prop,
+          source: locationOf(declaration, url),
+        },
+        source,
+      });
+
       return;
     }
 
-    const source = locationOf(comment, url);
     const target = nextSibling(comment);
 
     if (target === undefined || target.type === "comment" || target.type === "decl") {
