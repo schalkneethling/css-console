@@ -35,8 +35,12 @@ function position(source: SourceLocation): string {
 function describeTarget(associated: AssociatedAnnotation): string {
   const { target } = associated;
 
-  return target.kind === "function"
-    ? `function probe on @function ${target.functionName}`
+  if (target.kind === "function") {
+    return `function probe on @function ${target.functionName}`;
+  }
+
+  return target.kind === "declaration"
+    ? `declaration probe on ${target.property}`
     : `rule probe on ${target.selector}`;
 }
 
@@ -136,9 +140,8 @@ for (const path of paths) {
 }
 
 console.log(
-  `\nDeclaration probes are not associated yet, so a trailing annotation on a
-declaration is silently skipped rather than reported. That lands with CSSC-007.
-No CSS is evaluated here: this is the parser's view, not the browser's.`,
+  `\nNo CSS is evaluated here: this is the parser's view, not the browser's.
+Use inspect:probes to see what each attached annotation would compile to.`,
 );
 
 process.exit(errors > 0 ? 1 : 0);

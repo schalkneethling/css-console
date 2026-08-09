@@ -1,0 +1,64 @@
+# Format, lint, type check, and test every pull request and every push to main.
+#
+# The checks run against the branch tip, deliberately, not against each commit
+# in turn. The project develops test-first, so a red commit references code
+# that does not exist yet and cannot type check by construction; checking every
+# commit would fail the whole history rather than catching anything real. What
+# has to be correct is the state being merged.
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push supersedes the run already in flight for the same ref, because
+# the older result is about code nobody will merge.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      # The checkout credentials are not persisted into .git/config, because
+      # nothing here writes to the repository and a credential left in the
+      # working tree can be carried into an artifact or read by a later step.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # The Node floor package.json declares. The scripts under scripts/ run
+      # .ts files directly, which needs the type stripping Node 24 provides,
+      # so the floor is a real requirement rather than a preference.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version comes from package.json's packageManager field, which is
+      # where this action looks. Vite+ records the same pin under
+      # devEngines.packageManager, which the action does not read.
+      - uses: pnpm/action-setup@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      # Formatting, lint, and types in one pass, matching what runs locally.
+      - run: pnpm exec vp check
+
+      # The test run includes a browser project driving real Chromium through
+      # Playwright, which needs the browser downloaded. Only Chromium is
+      # installed, because that is the single instance the Vitest browser
+      # project configures; cross-browser coverage is CSSC-036's work and will
+      # bring its own requirements.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm exec vp test
+
+      # The structural rules the pre-commit hook enforces, which the check
+      # above does not cover: they are ast-grep patterns rather than lint
+      # rules, and they carry decisions such as type-rather-than-interface.
+      - run: pnpm run lint:structural
