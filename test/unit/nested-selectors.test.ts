@@ -612,6 +612,49 @@ test("the hardening fixture resolves every nested rule the way a browser reads i
   ]);
 });
 
+test("a keyframe selector is not resolved as a style selector", () => {
+  // PostCSS parses `from` inside @keyframes as an ordinary Rule node, so a
+  // transparent walk would resolve it to `:is(.card) from`: a matchable
+  // looking selector for something that is not a selector. Chromium discards
+  // a @keyframes nested in a style rule entirely, serialising the outer rule
+  // back as `.card { }`, so there is nothing there to match.
+  const rules = rulesOf(`.card { @keyframes spin { from { opacity: 0 } } }`);
+  const keyframe = rules.find((rule) => rule.selector === "from");
+
+  expect(keyframe).toBeDefined();
+  expect(resolveNestedSelector(keyframe!, URL).selector).toBeNull();
+});
+
+test("a keyframe selector reports nothing, leaving rule context to explain", () => {
+  const rules = rulesOf(`@keyframes spin { from { opacity: 0 } }`);
+  const keyframe = rules.find((rule) => rule.selector === "from");
+
+  // Rule-context compilation already reports why this is not probed, so
+  // resolution stays silent rather than saying the same thing twice.
+  expect(resolveNestedSelector(keyframe!, URL).diagnostics).toEqual([]);
+});
+
+test("a style rule inside a @function body resolves to no selector", () => {
+  const rules = rulesOf(`@function --f() { .inner { color: red } }`);
+
+  expect(resolveNestedSelector(rules[0]!, URL).selector).toBeNull();
+});
+
+test("the five transparent group at-rules stay transparent", () => {
+  for (const atRule of [
+    "@media (min-width: 40rem)",
+    "@supports (display: grid)",
+    "@container (min-inline-size: 20rem)",
+    "@layer components",
+    "@starting-style",
+  ]) {
+    const rules = rulesOf(`.card { ${atRule} { .title { color: red } } }`);
+    const inner = rules.find((rule) => rule.selector === ".title");
+
+    expect(resolveNestedSelector(inner!, URL).selector, atRule).toBe(":is(.card) .title");
+  }
+});
+
 test("the hardening fixture produces no diagnostics", () => {
   const { css, url } = loadFixture("hardening", "nested-selectors");
 

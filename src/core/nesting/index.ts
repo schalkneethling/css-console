@@ -292,7 +292,32 @@ function resolveComplexSelector(complex: string, substitution: string): string {
 type NestingContext =
   | { kind: "nested"; parent: Rule }
   | { kind: "scoped"; atRule: AtRule }
+  | { kind: "non-style"; atRule: AtRule }
   | { kind: "top-level" };
+
+/**
+ * The group at-rules nesting sees through. Each groups style rules without
+ * changing what their selectors mean, so a rule inside one is still nested in
+ * whatever style rule encloses that. Chromium confirms each keeps
+ * `.card { @media … { .title { } } }` matching what `:is(.card) .title`
+ * matches.
+ *
+ * Every other at-rule is opaque, and the distinction matters because some of
+ * them contain `Rule` nodes that are not style rules at all. PostCSS parses
+ * the `from`, `to`, and `50%` inside `@keyframes` as ordinary `Rule` nodes,
+ * so walking through it would resolve `from` into `:is(.card) from`: a
+ * matchable-looking selector for something that is not a selector. Chromium
+ * discards a `@keyframes` nested in a style rule outright, serialising
+ * `.card { @keyframes spin { … } }` back as `.card { }`, so there is nothing
+ * there to match at all.
+ */
+const TRANSPARENT_GROUP_AT_RULES = new Set([
+  "media",
+  "supports",
+  "container",
+  "layer",
+  "starting-style",
+]);
 
 /**
  * Finds what a rule's selector is relative to by walking its ancestors.
@@ -329,8 +354,14 @@ function nestingContextOf(rule: Rule): NestingContext {
 
     const atRule = ancestor as AtRule;
 
-    if (atRule.name.toLowerCase() === "scope") {
+    const name = atRule.name.toLowerCase();
+
+    if (name === "scope") {
       return { kind: "scoped", atRule };
+    }
+
+    if (!TRANSPARENT_GROUP_AT_RULES.has(name)) {
+      return { kind: "non-style", atRule };
     }
 
     ancestor = atRule.parent;
@@ -409,6 +440,14 @@ export function resolveNestedSelector(rule: Rule, url: string): NestingResolutio
         }),
       ],
     };
+  }
+
+  if (context.kind === "non-style") {
+    // Not a style rule, so there is no selector to resolve. No diagnostic is
+    // raised here: rule-context compilation already reports why a rule in
+    // this position is not probed, and reporting it twice would tell an
+    // author about one problem in two voices.
+    return { selector: null, diagnostics: [] };
   }
 
   if (context.kind === "top-level") {
