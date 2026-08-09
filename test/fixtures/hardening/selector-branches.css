@@ -1,0 +1,52 @@
+/* Hardening: selector branch splitting.
+   Every rule here is CSS a browser parses and retains, verified in Chromium,
+   so the branch splitter has to survive it rather than the parser rejecting
+   it first. The commas are the point: inside a functional pseudo-class, inside
+   an attribute string, and inside an escaped identifier, none of them separate
+   a branch. */
+
+.card,
+.card:is(.featured, .promoted),
+.card:not(.muted, .hidden) {
+  color: rgb(20 20 20);
+}
+
+.list > li:nth-child(2n of .visible, .pinned) {
+  color: rgb(30 30 30);
+}
+
+.field[title="small, medium"],
+.field[data-variant="a,b"] {
+  color: rgb(40 40 40);
+}
+
+.a\,b,
+.\31 23,
+.icon\:\:before {
+  color: rgb(50 50 50);
+}
+
+.note::before,
+.note::after,
+.note::marker,
+.note::first-line,
+.note::first-letter,
+.note::placeholder,
+.note::selection,
+.note::backdrop {
+  color: rgb(60 60 60);
+}
+
+.legacy:before,
+.legacy:after,
+.legacy:first-line,
+.legacy:first-letter {
+  color: rgb(70 70 70);
+}
+
+.badge,
+.badge::part(label),
+.badge::slotted(span),
+.badge::before::marker {
+  color: rgb(80 80 80);
+}

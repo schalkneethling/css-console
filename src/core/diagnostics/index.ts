@@ -168,6 +168,48 @@ export const DIAGNOSTIC_REGISTRY = {
     "informational",
     "The annotated function has no call sites in the scanned sources. This is reported because it is itself a useful debugging answer, not because it is an error.",
   ),
+  MISSING_REQUESTED_PROPERTY: defineDiagnostic(
+    "MISSING_REQUESTED_PROPERTY",
+    "warning",
+    "annotation",
+    "A rule probe's property list names a property the rule does not declare. The remaining requested properties still compile, so this is a warning rather than an error.",
+  ),
+  REPEATED_DECLARATION: defineDiagnostic(
+    "REPEATED_DECLARATION",
+    "info",
+    "informational",
+    "A property covered by a rule probe is declared more than once in the rule. The last authored value is reported, matching how the cascade resolves repeats within one rule.",
+  ),
+  DEFERRED_PSEUDO_ELEMENT: defineDiagnostic(
+    "DEFERRED_PSEUDO_ELEMENT",
+    "warning",
+    "deferred",
+    "A selector branch carries a pseudo-element css-console postponed, such as ::part(), ::slotted(), or a pseudo-element chain. The branch is skipped and the remaining branches of the selector still compile.",
+  ),
+  MALFORMED_SELECTOR_LIST: defineDiagnostic(
+    "MALFORMED_SELECTOR_LIST",
+    "error",
+    "annotation",
+    "The annotated rule's selector list contains an empty branch, which makes the whole list invalid, so the browser discards the rule. Remove the stray comma.",
+  ),
+  INVALID_NESTING_SELECTOR: defineDiagnostic(
+    "INVALID_NESTING_SELECTOR",
+    "error",
+    "annotation",
+    "A nested selector places something after the nesting selector that cannot continue a compound selector, most often a type selector as in &Bar. A type selector must come first in its compound selector, so the browser discards the whole rule. Write Bar& instead, remembering that nesting matches the elements the parent selector matches rather than joining names.",
+  ),
+  DEFERRED_SCOPE_NESTING: defineDiagnostic(
+    "DEFERRED_SCOPE_NESTING",
+    "warning",
+    "deferred",
+    "A rule inside @scope resolves against the scoping root rather than against an ancestor rule's selector, and a scoping root cannot be written into a flat selector. css-console postponed @scope, so this rule is not resolved and no record is produced for it.",
+  ),
+  INVALID_FUNCTION_BODY_RULE: defineDiagnostic(
+    "INVALID_FUNCTION_BODY_RULE",
+    "error",
+    "annotation",
+    "A style rule is authored inside an @function body. A function body declares custom properties, and may nest @media or @supports conditionals around further declarations, but a style rule has no matched element to apply to; the browser discards it entirely rather than keeping it. Move the rule outside the @function body.",
+  ),
 } as const;
 
 /**

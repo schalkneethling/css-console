@@ -38,6 +38,7 @@
     "stylelint:fix": "stylelint \"**/*.{css,scss}\" --fix --allow-empty-input",
     "e2e": "playwright test --pass-with-no-tests",
     "inspect:annotations": "node scripts/inspect-annotations.ts",
+    "inspect:probes": "node scripts/inspect-probes.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
   },
@@ -68,5 +69,8 @@
       "version": "11.20.0",
       "onFail": "download"
     }
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
