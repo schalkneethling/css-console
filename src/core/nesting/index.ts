@@ -476,7 +476,25 @@ export function resolveNestedSelector(rule: Rule, url: string): NestingResolutio
   const parent = resolveNestedSelector(context.parent, url);
 
   if (parent.selector === null) {
-    return { selector: null, diagnostics: parent.diagnostics };
+    // The ancestor could not be resolved, so neither can this rule. Report it
+    // against this rule rather than passing the ancestor's diagnostic through
+    // unchanged: propagating it verbatim gives every descendant an identical
+    // code and location, so a scope containing four rules reports the same
+    // pair twice and a reader cannot tell how many rules are actually
+    // affected. Each rule now carries one diagnostic about itself, and the
+    // details name the ancestor that caused it.
+    return {
+      selector: null,
+      diagnostics: parent.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        source: locationOf(rule, url),
+        details: {
+          ...diagnostic.details,
+          selector: rule.selector,
+          inheritedFrom: context.parent.selector,
+        },
+      })),
+    };
   }
 
   const substitution = `:is(${parent.selector})`;
