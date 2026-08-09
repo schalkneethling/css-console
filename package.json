@@ -68,5 +68,8 @@
       "version": "11.20.0",
       "onFail": "download"
     }
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

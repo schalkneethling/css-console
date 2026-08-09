@@ -167,8 +167,22 @@ function inspect(path: string): number {
   }
 
   const url = pathToFileURL(path).href;
-  const root = postcss.parse(css, { from: url });
-  const { annotations, diagnostics } = associateAnnotations(css, { url });
+
+  let root: Root;
+  let associated: ReturnType<typeof associateAnnotations>;
+
+  try {
+    root = postcss.parse(css, { from: url });
+    associated = associateAnnotations(css, { url });
+  } catch (error) {
+    // Malformed CSS is ordinary input for an inspection tool, so report it
+    // the way an unreadable file is reported and carry on to the next path
+    // rather than ending the run with a stack trace.
+    console.error(`\n${path}\n  could not be parsed: ${(error as Error).message}`);
+    return 1;
+  }
+
+  const { annotations, diagnostics } = associated;
 
   console.log(`\n${path}`);
 
@@ -212,21 +226,25 @@ function inspect(path: string): number {
 // `vp run inspect:probes -- file.css` forwards the separator itself.
 const paths = process.argv.slice(2).filter((argument) => argument !== "--");
 
+// The exit code is set rather than `process.exit()` called, because stdout is
+// written asynchronously when it is a pipe or a file and exiting outright can
+// drop output that has not flushed. Letting the process end on its own is the
+// difference between a report and a truncated one.
 if (paths.length === 0) {
   console.error("usage: node scripts/inspect-probes.ts <file.css> [more.css ...]");
-  process.exit(64);
-}
+  process.exitCode = 64;
+} else {
+  let errors = 0;
 
-let errors = 0;
+  for (const path of paths) {
+    errors += inspect(path);
+  }
 
-for (const path of paths) {
-  errors += inspect(path);
-}
-
-console.log(
-  `\nNothing above was evaluated. Selectors are resolved but never matched,
+  console.log(
+    `\nNothing above was evaluated. Selectors are resolved but never matched,
 conditions are recorded but never tested, and values are read as authored
 rather than resolved. This is what the browser would be asked, not answered.`,
-);
+  );
 
-process.exit(errors > 0 ? 1 : 0);
+  process.exitCode = errors > 0 ? 1 : 0;
+}
