@@ -67,6 +67,7 @@ const EXPECTED_DEFINITIONS = {
   MALFORMED_SELECTOR_LIST: { severity: "error", category: "annotation" },
   INVALID_NESTING_SELECTOR: { severity: "error", category: "annotation" },
   DEFERRED_SCOPE_NESTING: { severity: "warning", category: "deferred" },
+  INVALID_FUNCTION_BODY_RULE: { severity: "error", category: "annotation" },
 } as const;
 
 const EXPECTED_CODES = Object.keys(EXPECTED_DEFINITIONS).sort();
@@ -277,6 +278,7 @@ export type RegistryTypeAssertions = [
       | "MALFORMED_SELECTOR_LIST"
       | "INVALID_NESTING_SELECTOR"
       | "DEFERRED_SCOPE_NESTING"
+      | "INVALID_FUNCTION_BODY_RULE"
     >
   >,
 
