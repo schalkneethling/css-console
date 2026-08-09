@@ -24,7 +24,7 @@ export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 export { compileRuleContext } from "./rule-context.ts";
 export type { RuleContext, RuleContextEntry, RuleContextResolution } from "./rule-context.ts";
 
-import type { Declaration, Root, Rule } from "postcss";
+import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
@@ -500,11 +500,31 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
     );
   }
 
-  const rule = declaration.parent;
+  const parent = declaration.parent;
 
-  if (rule === undefined || rule.type !== "rule") {
+  if (parent !== undefined && parent.type === "atrule") {
+    // A declaration whose container is an at-rule rather than a style rule,
+    // such as `@font-face` or `@property`. These describe a font or a custom
+    // property registration rather than styling an element, so there is
+    // nothing for a probe to read a computed value from. Reported rather
+    // than returned empty, because an annotation that produces neither a
+    // probe nor a diagnostic tells the author nothing.
+    return {
+      properties: [],
+      diagnostics: [
+        createDiagnostic("OUTSIDE_SUPPORTED_TARGET_SET", {
+          source: locationOf(declaration, url),
+          details: { property: declaration.prop, atRule: (parent as AtRule).name },
+        }),
+      ],
+    };
+  }
+
+  if (parent === undefined || parent.type !== "rule") {
     return { properties: [], diagnostics: [] };
   }
+
+  const rule = parent;
 
   const context = compileRuleContext(rule as Rule, url);
 

@@ -8,7 +8,7 @@ import {
 } from "../../src/core/compiler/index.ts";
 import type { CompiledRuleProbe, DeclarationTarget } from "../../src/core/compiler/index.ts";
 
-import { fixtureUrl } from "../support/fixtures.ts";
+import { fixtureUrl, loadFixture } from "../support/fixtures.ts";
 
 /**
  * Declaration probe compilation tests.
@@ -206,6 +206,51 @@ test("a declaration inside @media compiles, since the condition may hold", () =>
 
   expect(result.properties[0]?.name).toBe("padding");
   expect(result.diagnostics).toEqual([]);
+});
+
+test("a declaration whose container is an at-rule is reported, not silently dropped", () => {
+  // @font-face describes a font rather than styling an element, so there is
+  // nothing for a probe to read. An annotation that produced neither a probe
+  // nor a diagnostic would tell the author nothing at all.
+  const result = compile(`@font-face {
+  font-family: Example; /* css-console: log */
+}`);
+
+  expect(result.properties).toEqual([]);
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
+  expect(result.diagnostics[0]?.details).toEqual({ property: "font-family", atRule: "font-face" });
+});
+
+test("a custom property registration descriptor is reported the same way", () => {
+  const result = compile(`@property --brand {
+  syntax: "<color>"; /* css-console: log */
+}`);
+
+  expect(result.properties).toEqual([]);
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
+  expect(result.diagnostics[0]?.details).toEqual({ property: "syntax", atRule: "property" });
+});
+
+test("the at-rule declaration fixture reports one diagnostic per annotation", () => {
+  const { css, url } = loadFixture("hardening", "at-rule-declarations");
+  const root = postcss.parse(css, { from: url });
+  const { annotations } = associateAnnotations(css, { url });
+
+  expect(annotations).toHaveLength(3);
+
+  const results = annotations.map((associated) =>
+    compileDeclarationProbe(root, associated.target as DeclarationTarget),
+  );
+
+  expect(results.flatMap((result) => result.properties)).toEqual([]);
+  expect(results.flatMap((result) => result.diagnostics.map((d) => d.code))).toEqual([
+    "OUTSIDE_SUPPORTED_TARGET_SET",
+    "OUTSIDE_SUPPORTED_TARGET_SET",
+    "OUTSIDE_SUPPORTED_TARGET_SET",
+  ]);
+  expect(results.flatMap((result) => result.diagnostics.map((d) => d.details?.["atRule"]))).toEqual(
+    ["font-face", "property", "page"],
+  );
 });
 
 test("a target from a different tree fails loudly rather than compiling nothing", () => {

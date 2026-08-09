@@ -1,0 +1,26 @@
+/**
+ * Hardening fixture for declarations whose container is an at-rule rather
+ * than a style rule.
+ *
+ * Each of these parses as an ordinary declaration and each accepts a trailing
+ * annotation, so association attaches a declaration probe to all of them. None
+ * of them styles an element: a font descriptor describes a font, and a
+ * custom property registration describes a property. There is nothing for a
+ * probe to read a computed value from, which is why compilation reports rather
+ * than silently producing no property.
+ */
+
+@font-face {
+  font-family: Example; /* css-console: log label="font descriptor" */
+  src: url("example.woff2") format("woff2");
+}
+
+@property --brand {
+  syntax: "<color>"; /* css-console: log label="registration descriptor" */
+  inherits: false;
+  initial-value: rebeccapurple;
+}
+
+@page {
+  margin: 1cm; /* css-console: log label="page margin" */
+}
