@@ -124,6 +124,45 @@ test("a repeated declaration uses the last authored value and reports REPEATED_D
   expect(result.diagnostics[0]?.details).toEqual({ property: "color", count: 2 });
 });
 
+test("an important declaration beats a later normal one, as the cascade does", () => {
+  // Verified in Chromium: this rule computes rgb(255, 0, 0), and the losing
+  // declaration is dropped from the rule's cssText entirely. Reporting the
+  // last declaration would name blue as authored while the browser resolved
+  // from red.
+  const result = compile(`/* css-console: log color */
+.card {
+  color: red !important;
+  color: blue;
+}`);
+
+  expect(result.properties[0]?.authored).toBe("red");
+  expect(result.properties[0]?.important).toBe(true);
+});
+
+test("the last important declaration wins when several are important", () => {
+  const result = compile(`/* css-console: log color */
+.card {
+  color: red !important;
+  color: green !important;
+  color: blue;
+}`);
+
+  expect(result.properties[0]?.authored).toBe("green");
+  expect(result.properties[0]?.important).toBe(true);
+});
+
+test("the repeated-declaration diagnostic points at the winning declaration", () => {
+  const result = compile(`/* css-console: log color */
+.card {
+  color: red !important;
+  color: blue;
+}`);
+
+  // Line 3 is the important declaration, which is the one an author has to
+  // look at to understand the reported value.
+  expect(result.diagnostics[0]?.source?.start.line).toBe(3);
+});
+
 test("a property declared once produces no REPEATED_DECLARATION diagnostic", () => {
   const result = compile(`/* css-console: log color */
 .card {

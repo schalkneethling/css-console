@@ -283,6 +283,28 @@ function ownDeclarations(rule: Rule): Declaration[] {
 }
 
 /**
+ * Returns the declaration that wins among repeats of one property within a
+ * single rule.
+ *
+ * Source order alone does not decide this. Importance is ranked above order,
+ * so in `color: red !important; color: blue` the earlier important
+ * declaration wins and the browser computes red; Chromium drops the loser
+ * from the rule's `cssText` entirely. Taking the last declaration would
+ * report `blue` as authored while the browser resolved from `red`, which
+ * makes every later comparison of authored against resolved wrong for
+ * exactly the declaration an author flagged as mattering most.
+ *
+ * Among declarations of equal importance the last one wins, which is
+ * ordinary source order.
+ */
+function winningDeclaration(declarations: readonly Declaration[]): Declaration | undefined {
+  const important = declarations.filter((declaration) => declaration.important === true);
+  const tier = important.length > 0 ? important : declarations;
+
+  return tier[tier.length - 1];
+}
+
+/**
  * Compiles one property from its winning declaration, extracting the
  * `var()` references its authored value carries.
  */
@@ -384,7 +406,7 @@ export function compileRuleProbeProperties(
       continue;
     }
 
-    const winner = declarations[declarations.length - 1];
+    const winner = winningDeclaration(declarations);
 
     if (winner === undefined) {
       continue;
