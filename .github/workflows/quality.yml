@@ -49,6 +49,13 @@ jobs:
       # Formatting, lint, and types in one pass, matching what runs locally.
       - run: pnpm exec vp check
 
+      # The test run includes a browser project driving real Chromium through
+      # Playwright, which needs the browser downloaded. Only Chromium is
+      # installed, because that is the single instance the Vitest browser
+      # project configures; cross-browser coverage is CSSC-036's work and will
+      # bring its own requirements.
+      - run: pnpm exec playwright install --with-deps chromium
+
       - run: pnpm exec vp test
 
       # The structural rules the pre-commit hook enforces, which the check
