@@ -86,6 +86,68 @@ const LEGACY_PSEUDO_ELEMENTS = new Set(["before", "after", "first-line", "first-
 /** The characters that continue an unescaped identifier. */
 const IDENTIFIER = /[A-Za-z0-9_-]/;
 
+/** A hexadecimal digit, which is what may follow a backslash in an escape. */
+const HEX_DIGIT = /[0-9A-Fa-f]/;
+
+/** The largest code point a CSS escape may denote. */
+const MAX_CODE_POINT = 0x10ffff;
+
+/**
+ * One identifier read from a selector: the decoded text, and the index just
+ * past the characters consumed. The two differ whenever an escape is
+ * involved, because `be\66 ore` is nine characters of source denoting the
+ * six-character name `before`, so a caller checking what follows the
+ * identifier must use `end` rather than the decoded length.
+ */
+type ReadIdentifier = { value: string; end: number };
+
+/** One decoded escape sequence and the index just past it. */
+type ReadEscape = { character: string; end: number };
+
+/**
+ * Decodes one CSS escape sequence beginning at a backslash, following the
+ * consume-an-escaped-code-point algorithm in CSS Syntax.
+ *
+ * A backslash followed by hexadecimal digits denotes a code point, taking at
+ * most six digits and swallowing one trailing whitespace character that
+ * exists only to terminate the digits. A backslash followed by anything else
+ * denotes that character literally. Out-of-range and surrogate code points
+ * become the replacement character, as the algorithm requires.
+ *
+ * This exists because an author may spell a supported pseudo-element with an
+ * escape: `::be\66 ore` denotes `::before`, and Chromium serialises it back
+ * as `::before` and generates the box. Reading the name without decoding
+ * would stop at the backslash and defer a pseudo-element css-console
+ * supports.
+ */
+function readEscape(text: string, start: number): ReadEscape | null {
+  if (text[start] !== "\\" || start + 1 >= text.length) {
+    return null;
+  }
+
+  let index = start + 1;
+  let digits = "";
+
+  while (index < text.length && digits.length < 6 && HEX_DIGIT.test(text[index] ?? "")) {
+    digits += text[index];
+    index += 1;
+  }
+
+  if (digits === "") {
+    return { character: text[index] ?? "", end: index + 1 };
+  }
+
+  if (/\s/.test(text[index] ?? "")) {
+    index += 1;
+  }
+
+  const codePoint = Number.parseInt(digits, 16);
+  const valid =
+    codePoint !== 0 && codePoint <= MAX_CODE_POINT && !(codePoint >= 0xd800 && codePoint <= 0xdfff);
+
+  return { character: valid ? String.fromCodePoint(codePoint) : "�", end: index };
+}
+
 /**
  * Reports the indices of `text` that sit at the top level of a selector:
  * outside every quoted string, outside every parenthesised or bracketed
@@ -172,14 +234,34 @@ function splitOnCommas(selector: string): string[] {
  * not recognised as a pseudo-element; it stays in the originating selector,
  * where it matches nothing, rather than being decoded here.
  */
-function readIdentifier(text: string, start: number): string {
+function readIdentifier(text: string, start: number): ReadIdentifier {
   let index = start;
+  let value = "";
 
-  while (index < text.length && IDENTIFIER.test(text[index] ?? "")) {
+  while (index < text.length) {
+    const character = text[index] ?? "";
+
+    if (character === "\\") {
+      const escape = readEscape(text, index);
+
+      if (escape === null) {
+        break;
+      }
+
+      value += escape.character;
+      index = escape.end;
+      continue;
+    }
+
+    if (!IDENTIFIER.test(character)) {
+      break;
+    }
+
+    value += character;
     index += 1;
   }
 
-  return text.slice(start, index);
+  return { value, end: index };
 }
 
 /**
@@ -199,7 +281,7 @@ function findPseudoElement(branch: string): number {
       return index;
     }
 
-    if (LEGACY_PSEUDO_ELEMENTS.has(readIdentifier(branch, index + 1).toLowerCase())) {
+    if (LEGACY_PSEUDO_ELEMENTS.has(readIdentifier(branch, index + 1).value.toLowerCase())) {
       return index;
     }
   }
@@ -228,11 +310,13 @@ function readPseudoElement(tail: string): string | null {
   const colons = tail.startsWith("::") ? 2 : 1;
   const name = readIdentifier(tail, colons);
 
-  if (tail.slice(colons + name.length).trim() !== "") {
+  // The consumed length, not the decoded length: an escape spends more
+  // source characters than the name it denotes.
+  if (tail.slice(name.end).trim() !== "") {
     return null;
   }
 
-  const normalised = name.toLowerCase();
+  const normalised = name.value.toLowerCase();
 
   return SUPPORTED_PSEUDO_ELEMENTS.has(normalised) ? `::${normalised}` : null;
 }

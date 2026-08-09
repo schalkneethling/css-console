@@ -124,6 +124,46 @@ test("a numeric-leading escaped class survives the split intact", () => {
   expect(selectors(result)).toEqual([".\\31 23", ".panel"]);
 });
 
+test("a pseudo-element name spelled with a hex escape is recognised", () => {
+  // .esc::be\66 ore is ::before: verified in Chromium, where the rule's
+  // selectorText serialises as ".esc::before" and the generated box carries
+  // the declarations. Reading the name without decoding would defer a
+  // pseudo-element css-console supports.
+  const result = split(".note::be\\66 ore");
+
+  expect(result.branches).toEqual([
+    {
+      authored: ".note::be\\66 ore",
+      selector: ".note",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
+  ]);
+  expect(result.diagnostics).toEqual([]);
+});
+
+test("an escaped legacy single-colon pseudo-element is recognised", () => {
+  const result = split(".note:\\62 efore");
+
+  expect(result.branches[0]?.pseudo).toBe("::before");
+  expect(result.branches[0]?.selector).toBe(".note");
+});
+
+test("an escape denoting a non-hex character is decoded literally", () => {
+  // \\62 is hex for "b", but \\b with no hex digits following would be the
+  // literal character. Spelling "marker" with an escaped "m" proves the
+  // literal branch of the decoder.
+  const result = split(".note::\\6d arker");
+
+  expect(result.branches[0]?.pseudo).toBe("::marker");
+});
+
+test("an escaped pseudo-element outside the supported set is still deferred", () => {
+  const result = split(".note::\\70 art(x)");
+
+  expect(result.branches).toEqual([]);
+  expect(codes(result)).toEqual(["DEFERRED_PSEUDO_ELEMENT"]);
+});
+
 test("an escaped colon pair is an identifier rather than a pseudo-element", () => {
   // .icon\:\:before matches an element whose class is "icon::before",
   // verified in Chromium, so the escaped colons must not be read as a
