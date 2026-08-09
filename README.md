@@ -5,7 +5,7 @@
 CSS Console is a development-only tool that turns inert, source-local CSS comments into live, element-specific value probes. Annotate a rule or declaration, load the library in development, and see the authored and browser-resolved values for every matching element — without repeatedly selecting those elements in DevTools.
 
 ```css
-/* @schalkneethling/css-console log inline-size,padding label="cards" */
+/* css-console: log inline-size,padding label="cards" */
 .card {
   inline-size: calc(50vw - var(--space));
   padding: var(--space);
@@ -37,8 +37,9 @@ This project uses [Vite+](https://viteplus.dev) and pnpm.
 
 - Install dependencies: `vp install`
 - Run the unit tests: `vp test`
-- Lint and check formatting: `pnpm quality`
-- Fix lint and formatting: `pnpm lint:fix && pnpm format`
+- Format, lint, and type check: `vp check`
+- Fix formatting and lint: `vp check --fix`
+- Inspect annotations in a stylesheet: `vp run inspect:annotations -- path/to/file.css`
 - Build the library: `vp pack`
 
 ## License

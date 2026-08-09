@@ -37,6 +37,7 @@
     "stylelint": "stylelint \"**/*.{css,scss}\" --allow-empty-input",
     "stylelint:fix": "stylelint \"**/*.{css,scss}\" --fix --allow-empty-input",
     "e2e": "playwright test --pass-with-no-tests",
+    "inspect:annotations": "node scripts/inspect-annotations.ts",
     "inspect:probes": "node scripts/inspect-probes.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
