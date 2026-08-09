@@ -54,7 +54,20 @@ function describeAnnotation(associated: AssociatedAnnotation): string {
   const { logLevel, properties, label } = associated.annotation;
   const parts = [`level=${logLevel}`];
 
-  parts.push(properties.length > 0 ? `properties=${properties.join(",")}` : "properties=all");
+  if (properties.length > 0) {
+    parts.push(`properties=${properties.join(",")}`);
+  } else if (associated.target.kind === "declaration") {
+    // A declaration probe names its one property through its position, which
+    // is why the grammar rejects a property list on one. Reporting "all"
+    // here would suggest it covers the whole rule.
+    parts.push(`property=${associated.target.property}`);
+  } else if (associated.target.kind === "style-rule") {
+    parts.push("properties=all declared in the rule");
+  } else {
+    // A function probe's properties come from its call sites rather than
+    // from the annotation, so neither "all" nor a list is the truth.
+    parts.push("properties=from call sites");
+  }
 
   if (label !== undefined) {
     parts.push(`label=${JSON.stringify(label)}`);
