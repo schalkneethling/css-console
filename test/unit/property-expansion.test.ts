@@ -239,7 +239,7 @@ test("all resets every standard property except direction and unicode-bidi", () 
   // leaves direction unchanged at rtl, and the same holds for unicode-bidi.
   // The CSS Cascade specification names exactly these two properties, plus
   // custom properties, as excluded from `all`.
-  expect(keysOf(ALL_EXCLUDED_PROPERTIES)).toEqual(["direction", "unicode-bidi"]);
+  expect([...ALL_EXCLUDED_PROPERTIES].sort()).toEqual(["direction", "unicode-bidi"]);
   expect(isResetByAll("color")).toBe(true);
   expect(isResetByAll("margin")).toBe(true);
   expect(isResetByAll("margin-left")).toBe(true);
@@ -454,7 +454,12 @@ test("min and max inline/block sizes resolve against their physical min/max coun
  * carries them all and the unused-local check does not flag them.
  */
 export type ExpansionTypeAssertions = [
-  Expect<Equal<WritingMode, "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr">>,
+  Expect<
+    Equal<
+      WritingMode,
+      "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr"
+    >
+  >,
   Expect<Equal<Direction, "ltr" | "rtl">>,
   Expect<Equal<LogicalResolver, (writingMode: WritingMode, direction: Direction) => string>>,
 ];

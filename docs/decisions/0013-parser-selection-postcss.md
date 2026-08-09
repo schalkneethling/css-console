@@ -34,7 +34,7 @@ Hand-rolling a parser was not considered; comment-preserving CSS parsing is a so
 - `postcss` is a dependency of the compiler in core, and `postcss-value-parser` is the planned dependency for call-site tokenization in CSSC-013.
 - The source import boundary admits `postcss` through a negation scoped to `src/core` in the lint rule, and the imports test proves both directions: the import passes under `src/core` and fails elsewhere under `src/`. When `postcss-value-parser` lands in CSSC-013, it gains its own negation the same way.
 - CSSC-007's contingency, extraction of trailing comments from raw declaration values with its own fixture set, is unnecessary. The adjacency rule works directly on comment nodes.
-- The property expansion tables in CSSC-012 default to hand-authored, versioned data in core, with the mdn-data option open as a regeneration source.
+- The property expansion tables in CSSC-012 default to hand-authored, versioned data in core, with the mdn-data option open as a regeneration source; decision record 0015 records the final choice.
 - Call-site resolution in CSSC-013 budgets for value tokenization through `postcss-value-parser` rather than receiving a value abstract syntax tree for free.
 
 ## Decisions recorded with the scaffold

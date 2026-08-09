@@ -20,19 +20,20 @@ Files are numbered with a zero-padded four-digit prefix followed by a short slug
 
 ## Index
 
-| Record                                                             | Decision                                                   |
-| ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| [0001](./0001-scope-principle-and-litmus-test.md)                  | Scope principle and litmus test                            |
-| [0002](./0002-raw-source-plus-live-dom.md)                         | Raw source plus live DOM                                   |
-| [0003](./0003-manual-nesting-resolution.md)                        | Manual nesting resolution rather than a transform pre-pass |
-| [0004](./0004-guard-as-guard-not-cascade-feature.md)               | Guard as a guard rather than a cascade feature             |
-| [0005](./0005-function-probes-as-third-probe-kind.md)              | Function probes as a third probe kind                      |
-| [0006](./0006-pseudo-element-probes-in-v0.md)                      | Pseudo-element probes in v0                                |
-| [0007](./0007-console-api-as-first-class-target.md)                | Console API as a first-class rendering target              |
-| [0008](./0008-three-way-scope-split.md)                            | Three-way scope split                                      |
-| [0009](./0009-three-tier-at-rule-target-model.md)                  | Three-tier at-rule target model                            |
-| [0010](./0010-single-package-with-compiler-enforced-boundaries.md) | Single package with compiler-enforced boundaries           |
-| [0011](./0011-type-rather-than-interface.md)                       | `type` rather than `interface` for public contracts        |
-| [0012](./0012-relationship-to-css-expect.md)                       | Relationship to css-expect                                 |
-| [0013](./0013-parser-selection-postcss.md)                         | Parser selection: PostCSS                                  |
-| [0014](./0014-structural-linting-with-ast-grep.md)                 | Structural linting with ast-grep                           |
+| Record                                                             | Decision                                                        |
+| ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| [0001](./0001-scope-principle-and-litmus-test.md)                  | Scope principle and litmus test                                 |
+| [0002](./0002-raw-source-plus-live-dom.md)                         | Raw source plus live DOM                                        |
+| [0003](./0003-manual-nesting-resolution.md)                        | Manual nesting resolution rather than a transform pre-pass      |
+| [0004](./0004-guard-as-guard-not-cascade-feature.md)               | Guard as a guard rather than a cascade feature                  |
+| [0005](./0005-function-probes-as-third-probe-kind.md)              | Function probes as a third probe kind                           |
+| [0006](./0006-pseudo-element-probes-in-v0.md)                      | Pseudo-element probes in v0                                     |
+| [0007](./0007-console-api-as-first-class-target.md)                | Console API as a first-class rendering target                   |
+| [0008](./0008-three-way-scope-split.md)                            | Three-way scope split                                           |
+| [0009](./0009-three-tier-at-rule-target-model.md)                  | Three-tier at-rule target model                                 |
+| [0010](./0010-single-package-with-compiler-enforced-boundaries.md) | Single package with compiler-enforced boundaries                |
+| [0011](./0011-type-rather-than-interface.md)                       | `type` rather than `interface` for public contracts             |
+| [0012](./0012-relationship-to-css-expect.md)                       | Relationship to css-expect                                      |
+| [0013](./0013-parser-selection-postcss.md)                         | Parser selection: PostCSS                                       |
+| [0014](./0014-structural-linting-with-ast-grep.md)                 | Structural linting with ast-grep                                |
+| [0015](./0015-property-expansion-data-source.md)                   | Property expansion data source: hand-authored, browser-verified |
