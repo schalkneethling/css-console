@@ -513,6 +513,11 @@ export function compileDeclarationProbe(root: Root, target: DeclarationTarget): 
       properties: [],
       diagnostics: [
         createDiagnostic("OUTSIDE_SUPPORTED_TARGET_SET", {
+          message:
+            `This declaration sits inside @${(parent as AtRule).name}, which describes a font, ` +
+            "a property registration, or a page rather than styling an element. Its value is " +
+            "whatever the source says, because there is no element to resolve it against. " +
+            "Annotate the declaration that uses it on an element instead.",
           source: locationOf(declaration, url),
           details: { property: declaration.prop, atRule: (parent as AtRule).name },
         }),
