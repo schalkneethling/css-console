@@ -168,6 +168,12 @@ export const DIAGNOSTIC_REGISTRY = {
     "informational",
     "The annotated function has no call sites in the scanned sources. This is reported because it is itself a useful debugging answer, not because it is an error.",
   ),
+  NO_PROBED_PROPERTIES: defineDiagnostic(
+    "NO_PROBED_PROPERTIES",
+    "info",
+    "informational",
+    "The annotated rule declares no properties of its own, so the probe covers nothing. This is reported because a probe that reports nothing is otherwise indistinguishable from a probe that was never compiled, not because it is an error.",
+  ),
   MISSING_REQUESTED_PROPERTY: defineDiagnostic(
     "MISSING_REQUESTED_PROPERTY",
     "warning",

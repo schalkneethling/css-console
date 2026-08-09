@@ -24,13 +24,15 @@ export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 export { compileRuleContext } from "./rule-context.ts";
 export type { RuleContext, RuleContextEntry, RuleContextResolution } from "./rule-context.ts";
 
-import type { Declaration, Root, Rule } from "postcss";
+import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
 import type { SourceLocation } from "../records/index.ts";
 
 import type { AnnotationTarget } from "../annotations/associate.ts";
+
+import { compileRuleContext } from "./rule-context.ts";
 
 /** The style-rule target shape a rule probe compiles from. */
 export type StyleRuleTarget = Extract<AnnotationTarget, { kind: "style-rule" }>;
@@ -71,10 +73,87 @@ export type CompiledRuleProbeProperty = {
  * not prevent the others from compiling, which is why the diagnostic carries
  * warning severity rather than discarding the probe.
  */
-export type CompiledRuleProbe = {
-  properties: readonly CompiledRuleProbeProperty[];
-  diagnostics: readonly Diagnostic[];
-};
+export type CompiledRuleProbe =
+  | {
+      properties: readonly [CompiledRuleProbeProperty, ...CompiledRuleProbeProperty[]];
+      diagnostics: readonly Diagnostic[];
+    }
+  | {
+      properties: readonly [];
+      diagnostics: readonly [Diagnostic, ...Diagnostic[]];
+    };
+
+/**
+ * Explains why a declaration inside an at-rule cannot be probed, in terms of
+ * that at-rule rather than in one message covering all of them.
+ *
+ * `@page` is called out separately because it is the case an author is most
+ * likely to think should work, and the reason it does not is different. A
+ * page box is not an element, so there is no `getComputedStyle()` to call:
+ * the CSSOM exposes `CSSPageRule.style`, which is the declared style. That
+ * is not nothing, since Chromium serialises `margin: calc(1cm + 2mm)` there
+ * as `calc(45.3543px)`, but it cannot answer which page a `:left` rule
+ * actually applied to, which is the question worth asking. Probing it is
+ * recorded as deferred work rather than refused outright.
+ */
+function descriptorMessage(atRule: string): string {
+  if (atRule.toLowerCase() === "page") {
+    return (
+      "This declaration sits inside @page. A page box is not an element, so there is nothing " +
+      "to call getComputedStyle() on and no way to ask which page a :left or :right rule " +
+      "applied to. Probing @page is deferred rather than rejected; see the diagnostics " +
+      "documentation."
+    );
+  }
+
+  return (
+    `This declaration sits inside @${atRule}, which describes a font or a property ` +
+    "registration rather than styling an element. Its value is whatever the source says, " +
+    "because there is no element to resolve it against. Annotate the declaration that uses " +
+    "it on an element instead."
+  );
+}
+
+/**
+ * Builds a compiled probe, reporting `NO_PROBED_PROPERTIES` when compilation
+ * found no properties and had nothing else to say.
+ *
+ * The return type makes an empty probe carrying no diagnostics
+ * unrepresentable, and this is where that constraint is honoured. It is not
+ * type theatre: the shape had been produced three times by three different
+ * paths, each time silently, and twice it took a reviewer to notice. An
+ * annotation that yields neither a property nor a diagnostic is
+ * indistinguishable from one the compiler never reached, which is the worst
+ * thing a debugging tool can tell an author.
+ */
+function compiledProbe(
+  properties: readonly CompiledRuleProbeProperty[],
+  diagnostics: readonly Diagnostic[],
+  source: SourceLocation,
+  details?: Record<string, unknown>,
+): CompiledRuleProbe {
+  const [first, ...rest] = properties;
+
+  if (first !== undefined) {
+    return { properties: [first, ...rest], diagnostics };
+  }
+
+  const [firstDiagnostic, ...restDiagnostics] = diagnostics;
+
+  if (firstDiagnostic !== undefined) {
+    return { properties: [], diagnostics: [firstDiagnostic, ...restDiagnostics] };
+  }
+
+  return {
+    properties: [],
+    diagnostics: [
+      createDiagnostic(
+        "NO_PROBED_PROPERTIES",
+        details === undefined ? { source } : { source, details },
+      ),
+    ],
+  };
+}
 
 /**
  * Finds the matching close parenthesis for an open parenthesis whose
@@ -434,5 +513,125 @@ export function compileRuleProbeProperties(
     properties.push(compileProperty(winner, url));
   }
 
-  return { properties, diagnostics };
+  return compiledProbe(properties, diagnostics, target.source, { selector: target.selector });
+}
+
+/** The declaration target shape a declaration probe compiles from. */
+export type DeclarationTarget = Extract<AnnotationTarget, { kind: "declaration" }>;
+
+/**
+ * Finds the declaration a declaration target names within a parsed tree.
+ * Matching by property alone is not enough, because a property may be
+ * declared more than once and may appear in many rules, so the target's own
+ * source position disambiguates. The position is exact rather than
+ * approximate, because association records the position PostCSS reported for
+ * this exact declaration.
+ */
+function findDeclaration(root: Root, target: DeclarationTarget): Declaration | undefined {
+  let found: Declaration | undefined;
+
+  root.walkDecls((declaration) => {
+    if (
+      found === undefined &&
+      declaration.prop === target.property &&
+      declaration.source?.start?.line === target.source.start.line &&
+      declaration.source?.start?.column === target.source.start.column
+    ) {
+      found = declaration;
+    }
+  });
+
+  return found;
+}
+
+/**
+ * Compiles the one property a declaration probe covers.
+ *
+ * A declaration probe names its property through its position in the source
+ * rather than through a list, which is why the grammar rejects a property
+ * list on one. What it compiles to is deliberately the same
+ * `CompiledRuleProbeProperty` a rule probe produces: the evaluator, the
+ * guard, and the identifier hash should never have to ask which probe kind
+ * produced a property.
+ *
+ * The annotated declaration is what gets compiled, even when a later
+ * declaration of the same property wins within the rule. The author pointed
+ * at a line, and that line is what the probe reports. That it does not win is
+ * a separate fact and worth telling them, because the value the browser
+ * resolves will not have come from the line they annotated, so this reports
+ * `REPEATED_DECLARATION` rather than quietly compiling the winner instead.
+ *
+ * A rule context this release does not evaluate excludes the probe entirely,
+ * reported with the code rule-context compilation uses, because a probe there
+ * would read a value the annotated rule never produced.
+ */
+export function compileDeclarationProbe(root: Root, target: DeclarationTarget): CompiledRuleProbe {
+  const { url } = target.source;
+  const declaration = findDeclaration(root, target);
+
+  if (declaration === undefined) {
+    throw new Error(
+      `compileDeclarationProbe: no declaration found for property "${target.property}" at ` +
+        `${url}:${target.source.start.line}:${target.source.start.column}. The target and ` +
+        "the parsed tree must come from the same source.",
+    );
+  }
+
+  const parent = declaration.parent;
+
+  if (parent !== undefined && parent.type === "atrule") {
+    // A declaration whose container is an at-rule rather than a style rule,
+    // such as `@font-face` or `@property`. These describe a font or a custom
+    // property registration rather than styling an element, so there is
+    // nothing for a probe to read a computed value from. Reported rather
+    // than returned empty, because an annotation that produces neither a
+    // probe nor a diagnostic tells the author nothing.
+    return {
+      properties: [],
+      diagnostics: [
+        createDiagnostic("OUTSIDE_SUPPORTED_TARGET_SET", {
+          message: descriptorMessage((parent as AtRule).name),
+          source: locationOf(declaration, url),
+          details: { property: declaration.prop, atRule: (parent as AtRule).name },
+        }),
+      ],
+    };
+  }
+
+  if (parent === undefined || parent.type !== "rule") {
+    return compiledProbe([], [], locationOf(declaration, url), { property: declaration.prop });
+  }
+
+  const rule = parent;
+
+  const context = compileRuleContext(rule as Rule, url);
+
+  if (context.context === null) {
+    return compiledProbe([], context.diagnostics, locationOf(declaration, url), {
+      property: declaration.prop,
+    });
+  }
+
+  const diagnostics: Diagnostic[] = [];
+  const siblings = ownDeclarations(rule as Rule).filter(
+    (candidate) => matchKey(candidate.prop) === matchKey(declaration.prop),
+  );
+
+  if (winningDeclaration(siblings) !== declaration) {
+    diagnostics.push(
+      createDiagnostic("REPEATED_DECLARATION", {
+        source: locationOf(declaration, url),
+        details: { property: declaration.prop, count: siblings.length },
+      }),
+    );
+  }
+
+  return compiledProbe(
+    [compileProperty(declaration, url)],
+    diagnostics,
+    locationOf(declaration, url),
+    {
+      property: declaration.prop,
+    },
+  );
 }

@@ -33,11 +33,16 @@ import type { Root, Rule } from "postcss";
 import { associateAnnotations } from "../src/core/annotations/index.ts";
 import type { AssociatedAnnotation } from "../src/core/annotations/index.ts";
 import {
+  compileDeclarationProbe,
   compileRuleContext,
   compileRuleProbeProperties,
   splitSelectorBranches,
 } from "../src/core/compiler/index.ts";
-import type { RuleContextEntry, StyleRuleTarget } from "../src/core/compiler/index.ts";
+import type {
+  CompiledRuleProbe,
+  RuleContextEntry,
+  StyleRuleTarget,
+} from "../src/core/compiler/index.ts";
 import { resolveNestedSelector } from "../src/core/nesting/index.ts";
 import type { Diagnostic, SourceLocation } from "../src/core/records/index.ts";
 
@@ -82,6 +87,34 @@ function findRule(root: Root, target: StyleRuleTarget): Rule | undefined {
   });
 
   return found;
+}
+
+/**
+ * Reports the properties a compiled probe covers, with the custom properties
+ * each value depends on, and returns the number of errors reported. Shared by
+ * both probe kinds, because they compile to the same property record.
+ */
+function reportProperties(compiled: CompiledRuleProbe, indent: string): number {
+  let errors = 0;
+
+  for (const diagnostic of compiled.diagnostics) {
+    reportDiagnostic(diagnostic, indent);
+    errors += diagnostic.severity === "error" ? 1 : 0;
+  }
+
+  for (const property of compiled.properties) {
+    const important = property.important ? " !important" : "";
+    const references = property.customProperties.map((reference) => reference.name).join(", ");
+    const depends = references === "" ? "" : `   depends on ${references}`;
+    // A value may span many lines in the source, which reads as broken
+    // indentation here. The authored text is preserved in the compiled
+    // record; only this report collapses it onto one line.
+    const authored = property.authored.replace(/\s+/gu, " ").trim();
+
+    console.log(`${indent}property ${property.name}: ${authored}${important}${depends}`);
+  }
+
+  return errors;
 }
 
 /**
@@ -137,22 +170,13 @@ function reportRuleProbe(root: Root, associated: AssociatedAnnotation, url: stri
     }
   }
 
-  const compiled = compileRuleProbeProperties(root, target, associated.annotation.properties);
-
-  for (const diagnostic of compiled.diagnostics) {
-    reportDiagnostic(diagnostic, "    ");
-    errors += diagnostic.severity === "error" ? 1 : 0;
-  }
-
-  for (const property of compiled.properties) {
-    const important = property.important ? " !important" : "";
-    const references = property.customProperties.map((reference) => reference.name).join(", ");
-    const depends = references === "" ? "" : `   depends on ${references}`;
-
-    console.log(`    property ${property.name}: ${property.authored}${important}${depends}`);
-  }
-
-  return errors;
+  return (
+    errors +
+    reportProperties(
+      compileRuleProbeProperties(root, target, associated.annotation.properties),
+      "    ",
+    )
+  );
 }
 
 /** Inspects one stylesheet, returning the number of errors reported. */
@@ -210,14 +234,16 @@ function inspect(path: string): number {
       continue;
     }
 
-    // Function and declaration probes compile in CSSC-013 and CSSC-008's
-    // sibling work; until then the association is all there is to show.
-    console.log(
-      target.kind === "function"
-        ? `    function: ${target.functionName}`
-        : `    declaration: ${target.property}`,
-    );
-    console.log("    (compilation for this probe kind has not landed yet)");
+    if (target.kind === "declaration") {
+      console.log(`    declaration: ${target.property}`);
+      errors += reportProperties(compileDeclarationProbe(root, target), "    ");
+      continue;
+    }
+
+    // Call-site resolution is CSSC-013, so a function probe still has only
+    // its association to show.
+    console.log(`    function: ${target.functionName}`);
+    console.log("    (call-site resolution has not landed yet)");
   }
 
   return errors;

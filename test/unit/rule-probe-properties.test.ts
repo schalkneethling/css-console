@@ -378,3 +378,35 @@ test("the hardening fixture exercises the full property-list red-case set in one
 
   expect(paddingProperty?.important).toBe(true);
 });
+
+test("an empty rule reports NO_PROBED_PROPERTIES rather than nothing at all", () => {
+  // A probe that reports neither a property nor a diagnostic is
+  // indistinguishable from one the compiler never reached. The return type
+  // makes that shape unrepresentable; this proves the reachable path.
+  const result = compile(`/* css-console: log */
+.card {
+}`);
+
+  expect(result.properties).toEqual([]);
+  expect(codes(result)).toEqual(["NO_PROBED_PROPERTIES"]);
+});
+
+test("a rule whose declarations all live in nested rules reports the same", () => {
+  const result = compile(`/* css-console: log */
+.card {
+  & .title {
+    color: red;
+  }
+}`);
+
+  expect(result.properties).toEqual([]);
+  expect(codes(result)).toEqual(["NO_PROBED_PROPERTIES"]);
+});
+
+test("the diagnostic names the selector whose probe covered nothing", () => {
+  const result = compile(`/* css-console: log */
+.card {
+}`);
+
+  expect(result.diagnostics[0]?.details).toEqual({ selector: ".card" });
+});

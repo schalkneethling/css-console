@@ -60,6 +60,10 @@ This diagnostic fires when an annotation preceding an `@function` definition car
 
 This diagnostic fires when an annotated function has zero call sites across the scanned sources. It carries informational severity rather than warning or error severity, because a function with no call sites is not a mistake in the annotation; it tells you that the function you are probing is unused in the sources css-console scanned, which is itself a useful debugging answer.
 
+## NO_PROBED_PROPERTIES
+
+This diagnostic fires when an annotated rule declares no properties of its own, either because the rule is empty or because everything in it is a nested rule. It carries informational severity rather than warning or error severity, because it is not a mistake: it tells you that the probe compiled and covers nothing, which is a different answer from the probe never compiling at all. A probe on a rule whose declarations all live in nested rules is usually a sign the annotation belongs on one of those rules instead.
+
 ## MISSING_REQUESTED_PROPERTY
 
 This diagnostic fires when a rule probe's property list names a property the rule does not declare. It carries warning rather than error severity, because the rest of the requested properties still compile and report; only the missing one is skipped. Check the property name for a typo, or confirm that the rule you annotated is the one that declares it.

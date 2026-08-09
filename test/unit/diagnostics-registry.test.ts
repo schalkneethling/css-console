@@ -61,6 +61,7 @@ const EXPECTED_DEFINITIONS = {
   PROPERTY_LIST_ON_DECLARATION_PROBE: { severity: "error", category: "annotation" },
   PROPERTY_LIST_ON_FUNCTION_PROBE: { severity: "error", category: "annotation" },
   NO_CALL_SITES: { severity: "info", category: "informational" },
+  NO_PROBED_PROPERTIES: { severity: "info", category: "informational" },
   MISSING_REQUESTED_PROPERTY: { severity: "warning", category: "annotation" },
   REPEATED_DECLARATION: { severity: "info", category: "informational" },
   DEFERRED_PSEUDO_ELEMENT: { severity: "warning", category: "deferred" },
@@ -272,6 +273,7 @@ export type RegistryTypeAssertions = [
       | "PROPERTY_LIST_ON_DECLARATION_PROBE"
       | "PROPERTY_LIST_ON_FUNCTION_PROBE"
       | "NO_CALL_SITES"
+      | "NO_PROBED_PROPERTIES"
       | "MISSING_REQUESTED_PROPERTY"
       | "REPEATED_DECLARATION"
       | "DEFERRED_PSEUDO_ELEMENT"
