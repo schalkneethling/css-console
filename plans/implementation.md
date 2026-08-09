@@ -830,6 +830,20 @@ Labels: `phase-1`, `core`, `compiler`
 
 Red cases: a rule inside `@media`, `@supports`, nested combinations, `@layer`, `@container`, `@scope`, `@starting-style`, and `@keyframes`; a mixed stack of nested rules and at-rules; a style rule inside a `@function` body.
 
+### CSSC-040 — Compile declaration probes
+
+Labels: `phase-1`, `core`, `compiler`
+
+**Review question**: does a declaration probe compile to the one property its position names?
+
+This issue exists because the plan had a gap rather than because the scope grew. Declaration probes are named as one of the three probe kinds throughout, and CSSC-007 associates them, but no issue compiled one: CSSC-008 is scoped to rule probes, and nothing between it and CSSC-016 picked the remainder up. The gap surfaced when the annotation inspector reported an attached declaration probe on a real stylesheet that the probe inspector could not compile. Its number reflects when it was found rather than where it belongs; it is sequenced here, after CSSC-011 and before the expansion tables.
+
+A declaration probe is a rule probe whose single property is fixed by position rather than chosen by a list, so this compiles to the same `CompiledRuleProbeProperty` shape CSSC-008 produces. Sharing the shape is the point: the evaluator, the guard, and the identifier hash should not have to ask which probe kind produced a property.
+
+Red cases: the annotated declaration compiles to exactly one property; the authored value is captured with `!important` split out; `var()` references are extracted, including nested and fallback forms, as they are for a rule probe; a repeated property in the same rule resolves to the same winner the cascade picks, with the annotated declaration itself identified rather than assumed to be the winner; the property name is captured exactly as authored; a custom property declaration compiles; a declaration inside a nested rule compiles against that rule; a declaration whose rule context is outside the supported target set is excluded.
+
+Acceptance: a declaration probe and a single-property rule probe on the same declaration compile to the same property record, so nothing downstream needs to distinguish them.
+
 ### CSSC-012 — Build the property expansion tables
 
 Labels: `phase-1`, `core`, `expansion`

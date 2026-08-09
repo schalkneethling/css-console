@@ -32,6 +32,8 @@ import type { SourceLocation } from "../records/index.ts";
 
 import type { AnnotationTarget } from "../annotations/associate.ts";
 
+import { compileRuleContext } from "./rule-context.ts";
+
 /** The style-rule target shape a rule probe compiles from. */
 export type StyleRuleTarget = Extract<AnnotationTarget, { kind: "style-rule" }>;
 
@@ -435,4 +437,94 @@ export function compileRuleProbeProperties(
   }
 
   return { properties, diagnostics };
+}
+
+/** The declaration target shape a declaration probe compiles from. */
+export type DeclarationTarget = Extract<AnnotationTarget, { kind: "declaration" }>;
+
+/**
+ * Finds the declaration a declaration target names within a parsed tree.
+ * Matching by property alone is not enough, because a property may be
+ * declared more than once and may appear in many rules, so the target's own
+ * source position disambiguates. The position is exact rather than
+ * approximate, because association records the position PostCSS reported for
+ * this exact declaration.
+ */
+function findDeclaration(root: Root, target: DeclarationTarget): Declaration | undefined {
+  let found: Declaration | undefined;
+
+  root.walkDecls((declaration) => {
+    if (
+      found === undefined &&
+      declaration.prop === target.property &&
+      declaration.source?.start?.line === target.source.start.line &&
+      declaration.source?.start?.column === target.source.start.column
+    ) {
+      found = declaration;
+    }
+  });
+
+  return found;
+}
+
+/**
+ * Compiles the one property a declaration probe covers.
+ *
+ * A declaration probe names its property through its position in the source
+ * rather than through a list, which is why the grammar rejects a property
+ * list on one. What it compiles to is deliberately the same
+ * `CompiledRuleProbeProperty` a rule probe produces: the evaluator, the
+ * guard, and the identifier hash should never have to ask which probe kind
+ * produced a property.
+ *
+ * The annotated declaration is what gets compiled, even when a later
+ * declaration of the same property wins within the rule. The author pointed
+ * at a line, and that line is what the probe reports. That it does not win is
+ * a separate fact and worth telling them, because the value the browser
+ * resolves will not have come from the line they annotated, so this reports
+ * `REPEATED_DECLARATION` rather than quietly compiling the winner instead.
+ *
+ * A rule context this release does not evaluate excludes the probe entirely,
+ * reported with the code rule-context compilation uses, because a probe there
+ * would read a value the annotated rule never produced.
+ */
+export function compileDeclarationProbe(root: Root, target: DeclarationTarget): CompiledRuleProbe {
+  const { url } = target.source;
+  const declaration = findDeclaration(root, target);
+
+  if (declaration === undefined) {
+    throw new Error(
+      `compileDeclarationProbe: no declaration found for property "${target.property}" at ` +
+        `${url}:${target.source.start.line}:${target.source.start.column}. The target and ` +
+        "the parsed tree must come from the same source.",
+    );
+  }
+
+  const rule = declaration.parent;
+
+  if (rule === undefined || rule.type !== "rule") {
+    return { properties: [], diagnostics: [] };
+  }
+
+  const context = compileRuleContext(rule as Rule, url);
+
+  if (context.context === null) {
+    return { properties: [], diagnostics: context.diagnostics };
+  }
+
+  const diagnostics: Diagnostic[] = [];
+  const siblings = ownDeclarations(rule as Rule).filter(
+    (candidate) => matchKey(candidate.prop) === matchKey(declaration.prop),
+  );
+
+  if (winningDeclaration(siblings) !== declaration) {
+    diagnostics.push(
+      createDiagnostic("REPEATED_DECLARATION", {
+        source: locationOf(declaration, url),
+        details: { property: declaration.prop, count: siblings.length },
+      }),
+    );
+  }
+
+  return { properties: [compileProperty(declaration, url)], diagnostics };
 }
