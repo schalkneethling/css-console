@@ -11,3 +11,10 @@ test/fixtures/hardening/omitted-semicolon.css
 # spread every list over several lines and restore the spaces, changing what
 # PostCSS reports as the rule's selector and defeating the fixture's purpose.
 test/fixtures/hardening/nested-selectors.css
+
+# The Pullfrog workflow is generated and carries a do-not-edit header, so it
+# is not ours to reformat. The formatter only unwraps a few long lines, which
+# is harmless in itself, but the generator rewrites the file on every update
+# and the difference would come back each time, failing the quality gate for a
+# change nobody made. Ignoring it keeps the gate about our own code.
+.github/workflows/pullfrog.yml
