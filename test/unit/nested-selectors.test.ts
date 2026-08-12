@@ -701,3 +701,41 @@ test("an inherited diagnostic names the ancestor it came from", () => {
     inheritedFrom: ".c",
   });
 });
+
+test("an inherited invalid-nesting diagnostic keeps the ancestor's offending compound", () => {
+  // The details deliberately mix two rules, and the shape is pinned here so
+  // that stays a decision rather than an accident: `selector` is the rule the
+  // diagnostic is about, `complexSelector` is the invalid compound in the
+  // ancestor, which is what an author has to fix, and `inheritedFrom` is what
+  // makes the pairing readable by saying the fault lies upstream.
+  const rules = rulesOf(`.foo {
+  .keep, &Bar {
+    .child { color: red }
+  }
+}`);
+  const child = rules.find((rule) => rule.selector === ".child");
+  const [diagnostic] = resolveNestedSelector(child!, URL).diagnostics;
+
+  expect(diagnostic?.code).toBe("INVALID_NESTING_SELECTOR");
+  expect(diagnostic?.details).toEqual({
+    selector: ".child",
+    complexSelector: "&Bar",
+    inheritedFrom: ".keep, &Bar",
+  });
+});
+
+test("an inherited diagnostic points at the descendant, not the ancestor", () => {
+  const rules = rulesOf(`.foo {
+  &Bar {
+    .child { color: red }
+  }
+}`);
+  const ancestor = rules.find((rule) => rule.selector === "&Bar");
+  const child = rules.find((rule) => rule.selector === ".child");
+
+  const ancestorLine = resolveNestedSelector(ancestor!, URL).diagnostics[0]?.source?.start.line;
+  const childLine = resolveNestedSelector(child!, URL).diagnostics[0]?.source?.start.line;
+
+  expect(ancestorLine).toBe(2);
+  expect(childLine).toBe(3);
+});
