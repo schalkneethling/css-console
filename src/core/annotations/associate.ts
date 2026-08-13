@@ -165,8 +165,13 @@ function trailedDeclaration(comment: Comment): Declaration | undefined {
 /**
  * Reads the function name from an `@function` at-rule's parameters, which
  * are the name followed by the parameter list, as in `--space(--multiplier)`.
+ *
+ * Exported because call-site resolution names the enclosing function of a
+ * definition reference the same way. Two spellings of "the name in these
+ * parameters" would be free to disagree about a case such as a space before
+ * the parenthesis, and the name is what a call site is matched against.
  */
-function functionNameOf(params: string): string {
+export function functionNameOf(params: string): string {
   const open = params.indexOf("(");
 
   return (open === -1 ? params : params.slice(0, open)).trim();
