@@ -287,6 +287,23 @@ export function associateAnnotations(
       return;
     }
 
+    if (parsed.annotation.properties.length > 0) {
+      // A function probe's properties come from its call sites rather than
+      // from the annotation, because a function has no destination property
+      // of its own: the same function called from `padding` and from
+      // `inline-size` reports both. Honouring a list would mean filtering
+      // call sites by a property the author cannot know in advance, so the
+      // list is rejected the same way a declaration probe rejects one.
+      diagnostics.push(
+        createDiagnostic("PROPERTY_LIST_ON_FUNCTION_PROBE", {
+          source,
+          details: { functionName: functionNameOf(target.params) },
+        }),
+      );
+
+      return;
+    }
+
     annotations.push({
       annotation: parsed.annotation,
       target: {
