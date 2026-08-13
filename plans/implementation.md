@@ -854,6 +854,22 @@ Red cases: each shorthand family expands to its longhands, with fixtures for `ma
 
 Acceptance: the logical table returns a mapping function rather than a resolved name, because resolution requires the element's writing mode; every table has a fixture asserting its complete key set.
 
+### CSSC-041 — Cover the sub-shorthands of the expansion families
+
+Labels: `phase-1`, `core`, `expansion`
+
+**Review question**: does the guard see a conflict between a covered family and a shorthand nested inside it?
+
+CSSC-012 covers the fourteen families the plan names, and an unrecognised property passes through as itself. Those two decisions leave a gap between them: a shorthand that is _itself_ a member of a covered family expands to nothing, so a conflict inside one family goes unseen. `background-position` is the crispest case, since it is the shorthand of `background-position-x` and `-y`, both of which the `background` entry already covers, yet it expands only to itself and `background`'s longhand set does not contain it. A `background: red` beside a `background-position: center` competes in the cascade and the guard would stay silent.
+
+The same holds for `border-top`, `border-right`, `border-bottom`, `border-left`, `border-color`, `border-style`, `border-image`, `font-variant`, and the two-value logical shorthands `margin-inline`, `padding-inline`, and `inset-inline` with their block-axis counterparts.
+
+This is a consequence of CSSC-012's stated scope rather than a defect against it, and it is worth closing on its own because `border-top` against `border` is as ordinary a conflict as `margin-left` against `margin`, which is the case that motivates the module at all. A miss here is silent rather than loud, which is the kind of gap the guard exists to prevent.
+
+Red cases: `background-position` expands to its two axis longhands and is reported as a member of `background`; each of the four single-edge `border-*` shorthands expands and belongs to `border`; `border-color` and `border-style` expand across all four edges; a two-value logical shorthand resolves to a pair of physical properties rather than one, which the current `LogicalResolver` shape cannot express, so the shape it needs is decided here; the complete key set of every table is asserted as CSSC-012 requires.
+
+Acceptance: expansion is transitive within a family, so a longhand reports every shorthand that resets it, at whatever depth.
+
 ### CSSC-013 — Resolve custom function call sites
 
 Labels: `phase-1`, `core`, `functions`

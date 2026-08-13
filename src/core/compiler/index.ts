@@ -32,6 +32,8 @@ import type { SourceLocation } from "../records/index.ts";
 
 import type { AnnotationTarget } from "../annotations/associate.ts";
 
+import { propertyMatchKey } from "../expansion/index.ts";
+
 import { compileRuleContext } from "./rule-context.ts";
 
 /** The style-rule target shape a rule probe compiles from. */
@@ -322,18 +324,12 @@ function locationOf(node: Declaration | Rule, url: string): SourceLocation {
 }
 
 /**
- * The key a property name matches under. Standard property names are ASCII
- * case-insensitive, verified against a real browser: `COLOR: red` and
- * `PADDING-TOP: 5px` both apply and compute. Custom property names are not;
- * `--Custom` and `--custom` name two distinct properties, also verified.
- * Folding a custom property name here would silently merge two properties an
- * author deliberately kept separate, so only the standard-property half is
- * normalised. This key is for matching only: the compiled property's `name`
- * always carries the declaration's own authored spelling, never this key.
+ * The key a property name matches under, shared with property expansion so
+ * that the compiler and the guard cannot key names differently. The compiled
+ * property's `name` always carries the declaration's own authored spelling,
+ * never this key.
  */
-function matchKey(name: string): string {
-  return name.startsWith("--") ? name : name.toLowerCase();
-}
+const matchKey = propertyMatchKey;
 
 /**
  * Finds the rule a style-rule target names within a parsed tree. Matching by
