@@ -1,0 +1,18 @@
+# Keep the pinned action SHAs current.
+#
+# Every `uses:` in this repository names a commit rather than a tag, because a
+# tag is mutable: whoever controls `v0` can change what runs against this
+# repository's secrets and its OIDC token without the workflow file changing.
+# Pinning removes that, and takes on the opposite problem, since a pinned SHA
+# never picks up a security fix on its own. Dependabot closes that gap by
+# opening a pull request when an action publishes a new release, which keeps
+# the update visible and reviewable rather than silent.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

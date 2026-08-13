@@ -28,21 +28,21 @@ jobs:
       # The checkout credentials are not persisted into .git/config, because
       # nothing here writes to the repository and a credential left in the
       # working tree can be carried into an artifact or read by a later step.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
 
       # The Node floor package.json declares. The scripts under scripts/ run
       # .ts files directly, which needs the type stripping Node 24 provides,
       # so the floor is a real requirement rather than a preference.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
 
       # The version comes from package.json's packageManager field, which is
       # where this action looks. Vite+ records the same pin under
       # devEngines.packageManager, which the action does not read.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - run: pnpm install --frozen-lockfile
 
