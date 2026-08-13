@@ -79,9 +79,18 @@ export type AssociationResult = {
   diagnostics: readonly Diagnostic[];
 };
 
-/** The options `associateAnnotations()` accepts. */
+/**
+ * The options `associateAnnotations()` accepts.
+ *
+ * `root` is the parsed tree to associate against, for a caller that has
+ * already parsed the source. `compileSource()` supplies it so that one source
+ * is parsed once and every pass reads the same tree, rather than association
+ * recording positions in one parse that later passes look up in another.
+ * Omitted, the source is parsed here.
+ */
 export type AssociateAnnotationsOptions = {
   url: string;
+  root?: Root;
 };
 
 /**
@@ -222,7 +231,7 @@ export function associateAnnotations(
   options: AssociateAnnotationsOptions,
 ): AssociationResult {
   const { url } = options;
-  const root: Root = postcss.parse(css, { from: url });
+  const root: Root = options.root ?? postcss.parse(css, { from: url });
 
   const annotations: AssociatedAnnotation[] = [];
   const diagnostics: Diagnostic[] = [];
