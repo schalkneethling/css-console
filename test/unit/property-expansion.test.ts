@@ -5,10 +5,17 @@ import {
   expandProperty,
   isResetByAll,
   LOGICAL_PROPERTIES,
+  LOGICAL_PROPERTY_PAIRS,
   resolveLogicalProperty,
+  resolveLogicalPropertyPair,
   SHORTHAND_LONGHANDS,
 } from "../../src/core/expansion/index.ts";
-import type { Direction, LogicalResolver, WritingMode } from "../../src/core/expansion/index.ts";
+import type {
+  Direction,
+  LogicalPairResolver,
+  LogicalResolver,
+  WritingMode,
+} from "../../src/core/expansion/index.ts";
 
 import type { Equal, Expect } from "./type-level.ts";
 
@@ -34,16 +41,26 @@ function keysOf(table: Readonly<Record<string, unknown>>): string[] {
   return Object.keys(table).sort();
 }
 
-test("every shorthand family the plan names is present in the table", () => {
+test("every shorthand family the plan names, plus the CSSC-041 sub-shorthands, is present in the table", () => {
   // A silently truncated table must fail here rather than pass with fewer
-  // entries, per the CSSC-012 acceptance criterion.
+  // entries, per the CSSC-012 acceptance criterion, extended by CSSC-041 to
+  // cover the sub-shorthands it added.
   expect(keysOf(SHORTHAND_LONGHANDS)).toEqual(
     [
       "background",
+      "background-position",
       "border",
+      "border-bottom",
+      "border-color",
+      "border-image",
+      "border-left",
+      "border-right",
+      "border-style",
+      "border-top",
       "border-width",
       "flex",
       "font",
+      "font-variant",
       "gap",
       "grid",
       "grid-template",
@@ -208,10 +225,104 @@ test("expansion is bidirectional: a longhand reports the shorthand it belongs to
 });
 
 test("a longhand shared by two shorthands reports both, in table order", () => {
-  // border-top-width is reset by both the border shorthand and the narrower
-  // border-width shorthand, verified in Chromium against each declaration
-  // independently.
-  expect(expandProperty("border-top-width")).toEqual(["border", "border-width"]);
+  // border-top-width is reset by border, the narrower border-width
+  // shorthand, and (CSSC-041) the narrower still border-top shorthand,
+  // verified in Chromium against each declaration independently.
+  expect(expandProperty("border-top-width")).toEqual(["border", "border-width", "border-top"]);
+});
+
+/**
+ * CSSC-041: sub-shorthands of the covered families. Each of these is itself
+ * a member of a family CSSC-012 already tabulated, so a conflict between the
+ * sub-shorthand and its family, such as `background: red` beside
+ * `background-position: center`, must be visible on both sides.
+ */
+
+test("background-position expands to its two axis longhands and is reported as a member of background", () => {
+  expect(expandProperty("background-position")).toEqual([
+    "background-position-x",
+    "background-position-y",
+    "background",
+  ]);
+});
+
+test("each single-edge border shorthand expands to its own longhands and belongs to border", () => {
+  expect(expandProperty("border-top")).toEqual([
+    "border-top-width",
+    "border-top-style",
+    "border-top-color",
+    "border",
+  ]);
+  expect(expandProperty("border-right")).toEqual([
+    "border-right-width",
+    "border-right-style",
+    "border-right-color",
+    "border",
+  ]);
+  expect(expandProperty("border-bottom")).toEqual([
+    "border-bottom-width",
+    "border-bottom-style",
+    "border-bottom-color",
+    "border",
+  ]);
+  expect(expandProperty("border-left")).toEqual([
+    "border-left-width",
+    "border-left-style",
+    "border-left-color",
+    "border",
+  ]);
+});
+
+test("border-color and border-style expand across all four edges and belong to border", () => {
+  expect(expandProperty("border-color")).toEqual([
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+    "border",
+  ]);
+  expect(expandProperty("border-style")).toEqual([
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+    "border",
+  ]);
+});
+
+test("border-image expands to its component longhands and belongs to border", () => {
+  expect(expandProperty("border-image")).toEqual([
+    "border-image-source",
+    "border-image-slice",
+    "border-image-width",
+    "border-image-outset",
+    "border-image-repeat",
+    "border",
+  ]);
+});
+
+test("font-variant expands to its variant longhands and belongs to font", () => {
+  expect(expandProperty("font-variant")).toEqual([
+    "font-variant-ligatures",
+    "font-variant-numeric",
+    "font-variant-east-asian",
+    "font-variant-caps",
+    "font-variant-alternates",
+    "font-variant-position",
+    "font-variant-emoji",
+    "font",
+  ]);
+});
+
+test("expansion is transitive: a longhand reports every shorthand that resets it, at whatever depth", () => {
+  // border-top-width is reset by border-top directly, by the narrower
+  // border-width shorthand, and by border itself, three different depths of
+  // the same family.
+  expect(expandProperty("border-top-width")).toEqual(["border", "border-width", "border-top"]);
+  expect(expandProperty("border-top-style")).toEqual(["border", "border-top", "border-style"]);
+  expect(expandProperty("border-top-color")).toEqual(["border", "border-top", "border-color"]);
+  expect(expandProperty("background-position-x")).toEqual(["background", "background-position"]);
+  expect(expandProperty("font-variant-caps")).toEqual(["font", "font-variant"]);
 });
 
 test("custom properties never expand", () => {
@@ -450,6 +561,135 @@ test("min and max inline/block sizes resolve against their physical min/max coun
 });
 
 /**
+ * CSSC-041: the two-value logical shorthands, margin-inline, padding-inline,
+ * inset-inline, and their -block counterparts. These resolve to a pair of
+ * physical longhands rather than one, which is why they live in a separate
+ * table from LOGICAL_PROPERTIES: see the module doc comment.
+ */
+
+const LOGICAL_PAIR_TABLE_KEYS = [
+  "margin-inline",
+  "margin-block",
+  "padding-inline",
+  "padding-block",
+  "inset-inline",
+  "inset-block",
+].sort();
+
+test("the logical pair table covers exactly the two-value box-edge shorthands", () => {
+  // A silently truncated table fails here rather than passing with fewer
+  // entries, the same discipline every other table in this module follows.
+  expect(keysOf(LOGICAL_PROPERTY_PAIRS)).toEqual(LOGICAL_PAIR_TABLE_KEYS);
+});
+
+test("the logical pair table returns a mapping function, not a resolved pair", () => {
+  for (const key of LOGICAL_PAIR_TABLE_KEYS) {
+    expect(typeof LOGICAL_PROPERTY_PAIRS[key], key).toBe("function");
+  }
+});
+
+test("resolveLogicalPropertyPair returns undefined for a physical property and an unknown name", () => {
+  expect(resolveLogicalPropertyPair("margin-left")).toBeUndefined();
+  expect(resolveLogicalPropertyPair("mask-composite")).toBeUndefined();
+});
+
+/**
+ * The full writing-mode and direction grid for margin-inline, captured from
+ * Chromium: el.style.setProperty("margin-inline", "5px 9px") on a fresh
+ * element under each writing-mode/direction combination, read back through
+ * getComputedStyle() against all four physical margin longhands. The first
+ * value (5px) always lands on the same physical side
+ * resolveLogicalProperty("margin-inline-start") reports for that
+ * combination, and the second (9px) on the side "margin-inline-end"
+ * reports, including for sideways-lr, whose inline axis inverts relative to
+ * the other vertical writing modes.
+ */
+const MARGIN_INLINE_PAIR_GRID: ReadonlyArray<[WritingMode, Direction, string, string]> = [
+  ["horizontal-tb", "ltr", "margin-left", "margin-right"],
+  ["horizontal-tb", "rtl", "margin-right", "margin-left"],
+  ["vertical-rl", "ltr", "margin-top", "margin-bottom"],
+  ["vertical-rl", "rtl", "margin-bottom", "margin-top"],
+  ["vertical-lr", "ltr", "margin-top", "margin-bottom"],
+  ["vertical-lr", "rtl", "margin-bottom", "margin-top"],
+  ["sideways-rl", "ltr", "margin-top", "margin-bottom"],
+  ["sideways-rl", "rtl", "margin-bottom", "margin-top"],
+  ["sideways-lr", "ltr", "margin-bottom", "margin-top"],
+  ["sideways-lr", "rtl", "margin-top", "margin-bottom"],
+];
+
+test("margin-inline resolves to the correct physical pair for every writing-mode and direction combination", () => {
+  const resolve = resolveLogicalPropertyPair("margin-inline") as LogicalPairResolver;
+
+  for (const [writingMode, direction, first, second] of MARGIN_INLINE_PAIR_GRID) {
+    expect(resolve(writingMode, direction), `${writingMode} ${direction}`).toEqual([first, second]);
+  }
+});
+
+test("margin-inline's pair agrees with the single-value inline-start/inline-end resolvers", () => {
+  const pair = resolveLogicalPropertyPair("margin-inline") as LogicalPairResolver;
+  const start = resolveLogicalProperty("margin-inline-start") as LogicalResolver;
+  const end = resolveLogicalProperty("margin-inline-end") as LogicalResolver;
+
+  for (const [writingMode, direction] of MARGIN_INLINE_PAIR_GRID) {
+    expect(pair(writingMode, direction)).toEqual([
+      start(writingMode, direction),
+      end(writingMode, direction),
+    ]);
+  }
+});
+
+test("margin-block does not depend on direction, only on writing mode, and agrees with the block-start/block-end resolvers", () => {
+  const pair = resolveLogicalPropertyPair("margin-block") as LogicalPairResolver;
+  const start = resolveLogicalProperty("margin-block-start") as LogicalResolver;
+  const end = resolveLogicalProperty("margin-block-end") as LogicalResolver;
+
+  for (const writingMode of [
+    "horizontal-tb",
+    "vertical-rl",
+    "vertical-lr",
+    "sideways-rl",
+    "sideways-lr",
+  ] as const) {
+    for (const direction of ["ltr", "rtl"] as const) {
+      expect(pair(writingMode, direction)).toEqual([
+        start(writingMode, direction),
+        end(writingMode, direction),
+      ]);
+    }
+  }
+});
+
+test("padding-inline and padding-block follow the same axis mapping as margin", () => {
+  // Verified in Chromium against the same grid used for margin, since the
+  // physical mapping algorithm is shared across every box-edge family
+  // rather than being margin-specific.
+  const marginInline = resolveLogicalPropertyPair("margin-inline") as LogicalPairResolver;
+  const paddingInline = resolveLogicalPropertyPair("padding-inline") as LogicalPairResolver;
+  const marginBlock = resolveLogicalPropertyPair("margin-block") as LogicalPairResolver;
+  const paddingBlock = resolveLogicalPropertyPair("padding-block") as LogicalPairResolver;
+
+  for (const [writingMode, direction] of MARGIN_INLINE_PAIR_GRID) {
+    expect(
+      paddingInline(writingMode, direction).map((name) => name.replace("padding-", "")),
+    ).toEqual(marginInline(writingMode, direction).map((name) => name.replace("margin-", "")));
+    expect(
+      paddingBlock(writingMode, direction).map((name) => name.replace("padding-", "")),
+    ).toEqual(marginBlock(writingMode, direction).map((name) => name.replace("margin-", "")));
+  }
+});
+
+test("inset-inline and inset-block resolve against the bare physical inset longhands", () => {
+  const resolveInline = resolveLogicalPropertyPair("inset-inline") as LogicalPairResolver;
+  const resolveBlock = resolveLogicalPropertyPair("inset-block") as LogicalPairResolver;
+
+  expect(resolveInline("horizontal-tb", "ltr")).toEqual(["left", "right"]);
+  expect(resolveInline("horizontal-tb", "rtl")).toEqual(["right", "left"]);
+  expect(resolveInline("vertical-rl", "ltr")).toEqual(["top", "bottom"]);
+  expect(resolveBlock("horizontal-tb", "ltr")).toEqual(["top", "bottom"]);
+  expect(resolveBlock("vertical-rl", "ltr")).toEqual(["right", "left"]);
+});
+
+/**
  * The type-level assertions gather into one exported tuple so a single name
  * carries them all and the unused-local check does not flag them.
  */
@@ -462,4 +702,10 @@ export type ExpansionTypeAssertions = [
   >,
   Expect<Equal<Direction, "ltr" | "rtl">>,
   Expect<Equal<LogicalResolver, (writingMode: WritingMode, direction: Direction) => string>>,
+  Expect<
+    Equal<
+      LogicalPairResolver,
+      (writingMode: WritingMode, direction: Direction) => readonly [string, string]
+    >
+  >,
 ];
