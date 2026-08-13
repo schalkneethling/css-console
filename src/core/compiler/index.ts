@@ -35,6 +35,16 @@ export {
 } from "./guard-index.ts";
 export type { GuardIndex, IndexedDeclaration } from "./guard-index.ts";
 
+export {
+  composeFunctionRecordProbeId,
+  computeCallSiteIds,
+  computeFunctionProbeId,
+  computeValueProbeId,
+  hashProbeParts,
+  portableSource,
+} from "./probe-id.ts";
+export type { CallSiteIdentity, FunctionProbeIdentity, ValueProbeIdentity } from "./probe-id.ts";
+
 import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
