@@ -161,13 +161,25 @@ export const SHORTHAND_LONGHANDS: Readonly<Record<string, readonly string[]>> = 
 };
 
 /**
- * The key a property name matches under. Standard CSS property names are
- * ASCII case-insensitive; custom property names are not. This mirrors the
- * matching convention `src/core/compiler/index.ts` uses for the same reason:
- * folding a custom property name here would silently merge two properties an
- * author deliberately kept separate.
+ * The key a property name matches under.
+ *
+ * Standard property names are ASCII case-insensitive, verified against a real
+ * browser: `COLOR: red` and `PADDING-TOP: 5px` both apply and compute. Custom
+ * property names are not; `--Custom` and `--custom` name two distinct
+ * properties, also verified. Folding a custom property name here would
+ * silently merge two properties an author deliberately kept separate, so only
+ * the standard-property half is normalised.
+ *
+ * This key is for matching only. Every caller reports the authored spelling,
+ * never this key.
+ *
+ * It lives here, and is exported, because the compiler and the guard must key
+ * property names identically: the compiler decides which declaration a probe
+ * covers, and expansion decides which other properties could compete with it.
+ * Two copies that agree today are two copies that can disagree later, and the
+ * failure would be silent, so there is one.
  */
-function matchKey(name: string): string {
+export function propertyMatchKey(name: string): string {
   return name.startsWith("--") ? name : name.toLowerCase();
 }
 
@@ -192,7 +204,7 @@ const LONGHAND_SHORTHANDS: ReadonlyMap<string, readonly string[]> = (() => {
 
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_LONGHANDS)) {
     for (const longhand of longhands) {
-      const key = matchKey(longhand);
+      const key = propertyMatchKey(longhand);
       const existing = inverse.get(key);
 
       if (existing === undefined) {
@@ -229,7 +241,7 @@ export function expandProperty(property: string): readonly string[] {
     return [];
   }
 
-  const key = matchKey(property);
+  const key = propertyMatchKey(property);
   const longhands = SHORTHAND_LONGHANDS[key];
 
   if (longhands !== undefined) {
@@ -277,7 +289,7 @@ export function isResetByAll(property: string): boolean {
     return false;
   }
 
-  return !ALL_EXCLUDED_PROPERTIES.has(matchKey(property));
+  return !ALL_EXCLUDED_PROPERTIES.has(propertyMatchKey(property));
 }
 
 /**
@@ -507,5 +519,5 @@ export const LOGICAL_PROPERTIES: Readonly<Record<string, LogicalResolver>> = (()
  * competitor.
  */
 export function resolveLogicalProperty(property: string): LogicalResolver | undefined {
-  return LOGICAL_PROPERTIES[matchKey(property)];
+  return LOGICAL_PROPERTIES[propertyMatchKey(property)];
 }
