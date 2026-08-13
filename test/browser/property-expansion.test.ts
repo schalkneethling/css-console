@@ -143,16 +143,19 @@ test("all: initial still leaves direction, unicode-bidi, and custom properties a
 
     return {
       direction: computed.direction,
+      unicodeBidi: computed.unicodeBidi,
       custom: computed.getPropertyValue("--brand").trim(),
       color: computed.color,
     };
   });
 
   expect(survived.direction).toBe("rtl");
+  expect(survived.unicodeBidi).toBe("bidi-override");
   expect(survived.custom).toBe("rebeccapurple");
   expect(survived.color).not.toBe("rgb(1, 2, 3)");
 
   expect(isResetByAll("direction")).toBe(false);
+  expect(isResetByAll("unicode-bidi")).toBe(false);
   expect(isResetByAll("--brand")).toBe(false);
   expect(isResetByAll("color")).toBe(true);
 });
