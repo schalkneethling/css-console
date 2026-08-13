@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { expect, test } from "vite-plus/test";
@@ -295,3 +295,77 @@ export type RegistryTypeAssertions = [
 export const rejectedUnknownCode = (): Diagnostic =>
   // @ts-expect-error an unknown code is not assignable to the code parameter
   createDiagnostic("NOT_A_REAL_CODE");
+
+/**
+ * Codes the registry defines that nothing produces yet, each with the issue
+ * that will produce it. The list exists so the gap is declared rather than
+ * discovered: a code that is registered and documented but never emitted is
+ * invisible in every other check, because the registry test proves the docs
+ * and the registry agree and says nothing about whether the condition is ever
+ * reported.
+ *
+ * That is not hypothetical. PROPERTY_LIST_ON_FUNCTION_PROBE sat registered,
+ * documented, and dead while a property list on a function probe was silently
+ * accepted, and it took a reviewer reading an unrelated pull request to
+ * notice. This list shrinks as the phases land; it must never grow without a
+ * reason written beside the entry.
+ */
+const PENDING_EMITTERS: Readonly<Record<string, string>> = {
+  // Source discovery and loading is Phase 3: CSSC-025 loads linked
+  // stylesheets and is where a failed fetch and an HTTP error status are
+  // first reported.
+  SOURCE_LOAD_FAILED: "CSSC-025",
+  SOURCE_HTTP_ERROR: "CSSC-025",
+};
+
+/**
+ * Reads every core source file, so the emitter check searches the code that
+ * actually runs rather than the tests that exercise it. A code named only by
+ * a test is still a code nothing produces.
+ */
+function readCoreSources(): string {
+  const root = resolve(import.meta.dirname, "../../src/core");
+  const files: string[] = [];
+
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        walk(path);
+      } else if (entry.name.endsWith(".ts") && !path.endsWith("diagnostics/index.ts")) {
+        files.push(readFileSync(path, "utf8"));
+      }
+    }
+  };
+
+  walk(root);
+
+  return files.join("\n");
+}
+
+test("every registry code is produced by core, or is declared as pending", () => {
+  const sources = readCoreSources();
+
+  for (const code of REGISTRY_CODES) {
+    const emitted = sources.includes(`"${code}"`);
+    const pending = code in PENDING_EMITTERS;
+
+    expect(
+      emitted || pending,
+      `${code} is registered and documented but nothing in src/core produces it, ` +
+        "and it is not listed in PENDING_EMITTERS",
+    ).toBe(true);
+  }
+});
+
+test("no code is listed as pending once something produces it", () => {
+  const sources = readCoreSources();
+
+  for (const [code, issue] of Object.entries(PENDING_EMITTERS)) {
+    expect(
+      sources.includes(`"${code}"`),
+      `${code} is produced now; drop it from the ${issue} entry`,
+    ).toBe(false);
+  }
+});
