@@ -24,6 +24,17 @@ export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 export { compileRuleContext } from "./rule-context.ts";
 export type { RuleContext, RuleContextEntry, RuleContextResolution } from "./rule-context.ts";
 
+export { resolveProbePlacement } from "./placement.ts";
+export type { ProbePlacement } from "./placement.ts";
+
+export {
+  buildGuardIndex,
+  competesInWritingMode,
+  guardCandidates,
+  indexedDeclarationOf,
+} from "./guard-index.ts";
+export type { GuardIndex, IndexedDeclaration } from "./guard-index.ts";
+
 import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";

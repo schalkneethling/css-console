@@ -204,9 +204,16 @@ test("a logical declaration is never keyed under a physical property name", () =
 test("a logical declaration is a candidate for the physical property it may address", () => {
   const index = indexOf(`.a { margin-inline-start: 1px; }`);
 
+  // Candidacy is deliberately an over-approximation: the inline start edge is
+  // the left or right margin in a horizontal writing mode and the top or
+  // bottom margin in a vertical one, so all four are candidates and the
+  // element decides. A property the declaration can never address under any
+  // writing mode is not a candidate at all.
   expect(candidateProperties(index, "margin-left")).toEqual(["margin-inline-start"]);
   expect(candidateProperties(index, "margin-right")).toEqual(["margin-inline-start"]);
-  expect(candidateProperties(index, "margin-top")).toEqual([]);
+  expect(candidateProperties(index, "margin-top")).toEqual(["margin-inline-start"]);
+  expect(candidateProperties(index, "padding-left")).toEqual([]);
+  expect(candidateProperties(index, "color")).toEqual([]);
 });
 
 test("a logical candidate defers the decision to per-element resolution", () => {
