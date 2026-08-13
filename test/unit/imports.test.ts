@@ -82,6 +82,20 @@ const cases: readonly LintCase[] = [
     fires: true,
   },
   {
+    name: "the postcss-value-parser import passes the lint rule under src/core",
+    file: "src/core/value-parser-allowed.ts",
+    contents:
+      'import valueParser from "postcss-value-parser";\n\nexport const parseValue = valueParser;\n',
+    fires: false,
+  },
+  {
+    name: "the postcss-value-parser import fails the lint rule outside src/core",
+    file: "src/browser/value-parser-violation.ts",
+    contents:
+      'import valueParser from "postcss-value-parser";\n\nexport const boundaryViolation = valueParser;\n',
+    fires: true,
+  },
+  {
     name: "a scoped package import under src/ fails the lint rule",
     file: "src/core/scoped-package-violation.ts",
     contents: 'import { x } from "@scope/package";\n\nexport const boundaryViolation = x;\n',

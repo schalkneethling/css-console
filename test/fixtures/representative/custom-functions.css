@@ -1,0 +1,25 @@
+/* A spacing scale built from a custom function, called across several rules
+   the way a component stylesheet would call it. */
+
+/* css-console: log label="spacing scale" */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}
+
+@function --space-loose(--multiplier) {
+  result: --space(calc(var(--multiplier) * 2));
+}
+
+.card {
+  padding: --space(4);
+  margin-block: --space(2) --space(3);
+  border-radius: 0.5rem;
+}
+
+.card .card__title {
+  margin-block-end: calc(--space(1) + 2px);
+}
+
+.card .card__footer {
+  padding-block: --space-loose(1);
+}
