@@ -25,9 +25,12 @@ import type { Direction, WritingMode } from "../../src/core/expansion/index.ts";
  * a maintained check: when the browser moves, this lane fails and says so,
  * rather than the tables quietly describing a browser nobody runs any more.
  *
- * A representative slice rather than all fourteen families. The point is to
- * notice drift, and drift arrives per release across the board rather than in
- * one family at a time.
+ * A representative slice rather than all fourteen families, chosen so that
+ * the entries most likely to move are the ones covered: `font` because it is
+ * the largest and has gained members most recently, `border` and `background`
+ * because their sets are the two a reader would most likely write down wrong.
+ * The families left out are small and stable, and drift tends to arrive per
+ * release across the board rather than in one family at a time.
  */
 
 /** A fresh element, removed after the assertion so cases stay independent. */
@@ -62,6 +65,11 @@ const FAMILIES: ReadonlyArray<readonly [string, string]> = [
   ["border", "1px solid red"],
   ["border-width", "3px"],
   ["background", "red"],
+  // The largest family at nineteen longhands, and the one whose membership
+  // has moved most recently, gaining font-variant-emoji and
+  // font-variation-settings. A slice that left out the entry most likely to
+  // drift would not be doing the job this file exists for.
+  ["font", "16px Arial"],
   ["flex", "1"],
   ["gap", "3px"],
   ["overflow", "scroll"],
