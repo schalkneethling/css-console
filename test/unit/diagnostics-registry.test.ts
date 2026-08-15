@@ -309,6 +309,13 @@ export const rejectedUnknownCode = (): Diagnostic =>
  * accepted, and it took a reviewer reading an unrelated pull request to
  * notice. This list shrinks as the phases land; it must never grow without a
  * reason written beside the entry.
+ *
+ * The emitter check below is a heuristic: it matches any double-quoted
+ * occurrence of a code in core source, so a code quoted in a comment would
+ * satisfy it without anything emitting it. Tightening the match to
+ * `createDiagnostic(...)` call sites would trip on the `reject(...)` and
+ * `blocked(...)` helper patterns, so the looser match is deliberate; do not
+ * quote a registry code in a core comment.
  */
 const PENDING_EMITTERS: Readonly<Record<string, string>> = {
   // Source discovery and loading is Phase 3: CSSC-025 loads linked
@@ -325,6 +332,9 @@ const PENDING_EMITTERS: Readonly<Record<string, string>> = {
  */
 function readCoreSources(): string {
   const root = resolve(import.meta.dirname, "../../src/core");
+  // Resolved rather than suffix-matched, because path.resolve() uses
+  // backslash separators on Windows and a slash suffix would never match.
+  const registryPath = resolve(root, "diagnostics", "index.ts");
   const files: string[] = [];
 
   const walk = (directory: string): void => {
@@ -333,7 +343,7 @@ function readCoreSources(): string {
 
       if (entry.isDirectory()) {
         walk(path);
-      } else if (entry.name.endsWith(".ts") && !path.endsWith("diagnostics/index.ts")) {
+      } else if (entry.name.endsWith(".ts") && path !== registryPath) {
         files.push(readFileSync(path, "utf8"));
       }
     }

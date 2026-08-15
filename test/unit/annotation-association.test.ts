@@ -74,6 +74,29 @@ test("a comment immediately preceding @function attaches as a function probe", (
   expect(associated.target.kind === "function" && associated.target.functionName).toBe("--space");
 });
 
+test("a property list on a function probe is rejected", () => {
+  const result = associate(`/* css-console: log padding */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}`);
+
+  expect(result.annotations).toHaveLength(0);
+  expect(codes(result)).toEqual(["PROPERTY_LIST_ON_FUNCTION_PROBE"]);
+  expect(result.diagnostics[0]?.details).toEqual({ functionName: "--space" });
+});
+
+test("a label on a function probe is accepted", () => {
+  const associated = onlyAnnotation(
+    associate(`/* css-console: log label="spacing scale" */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}`),
+  );
+
+  expect(associated.target.kind).toBe("function");
+  expect(associated.annotation.label).toBe("spacing scale");
+});
+
 test("whitespace-only separation still attaches", () => {
   const associated = onlyAnnotation(
     associate(`/* css-console: log */
