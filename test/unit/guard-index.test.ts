@@ -106,12 +106,26 @@ test("candidates are an unordered set rather than a ranked list", () => {
   expect(guardCandidates(index, "color")).toBeInstanceOf(Set);
 });
 
-test("an index entry stores only the property, the selector, and the context", () => {
+test("an index entry stores only the property, the selector, the context, and the importance", () => {
   const index = indexOf(`.a { color: red; }`);
   const [entry] = [...guardCandidates(index, "color")];
 
   expect(entry).toBeDefined();
-  expect(Object.keys(entry ?? {}).sort()).toEqual(["context", "property", "selector"]);
+  expect(Object.keys(entry ?? {}).sort()).toEqual(["context", "important", "property", "selector"]);
+});
+
+test("a declaration carrying !important is indexed with its importance", () => {
+  const index = indexOf(`.a { color: red !important; }`);
+  const [entry] = [...guardCandidates(index, "color")];
+
+  expect(entry?.important).toBe(true);
+});
+
+test("a declaration without !important is indexed as not important", () => {
+  const index = indexOf(`.a { color: red; }`);
+  const [entry] = [...guardCandidates(index, "color")];
+
+  expect(entry?.important).toBe(false);
 });
 
 test("a declaration is findable under each of the probed property's longhand keys", () => {
