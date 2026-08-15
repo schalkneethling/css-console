@@ -16,10 +16,13 @@ export const PACKAGE_NAME = "@schalkneethling/css-console";
 
 export type {
   CallSite,
+  FunctionProbeStart,
   FunctionRecord,
   GuardReason,
   LogLevel,
   ProbeRecord,
+  ProbeStart,
+  ProbeSummary,
   ProbeValue,
   ScanEvent,
   ScanSummary,
@@ -27,6 +30,7 @@ export type {
   SourcePosition,
   Unsubscribe,
   ValueGuard,
+  ValueProbeStart,
   ValueRecord,
 } from "./core/records/index.ts";
 

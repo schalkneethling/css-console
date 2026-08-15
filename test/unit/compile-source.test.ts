@@ -275,7 +275,11 @@ test("a compiled call site carries the guard index entry of its own declaration"
   // The entry is the index's own entry rather than a copy of it, so passing
   // it as `self` excludes the call site's declaration from its own guard
   // candidates by identity.
-  const candidates = guardCandidates(compiled.guardIndex, "padding", callSite?.indexed ?? undefined);
+  const candidates = guardCandidates(
+    compiled.guardIndex,
+    "padding",
+    callSite?.indexed ?? undefined,
+  );
 
   expect(callSite?.indexed === undefined || callSite.indexed === null).toBe(false);
   expect([...candidates]).not.toContain(callSite?.indexed);
