@@ -6,3 +6,7 @@ test-results
 playwright-report
 *.log
 .DS_Store
+
+# Vitest browser-lane failure artifacts
+.vitest-attachments/
+test/browser/__screenshots__/
