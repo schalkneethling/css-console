@@ -27,9 +27,10 @@
  * a location here would be data with no consumer and an invitation to start
  * presenting competitors. No count: `contested` is a boolean, and the number
  * of competitors is exactly the fact section 3.4 refuses to imply meaning
- * from. No ordering: candidates come back as a `Set`, because a list has an
- * order and the guard performs no specificity, layer, or document-order
- * comparison anywhere. No importance and no authored value: `important` is
+ * from. No rank: candidates come back as a `Set` with no rank attached,
+ * because the guard performs no specificity, layer, or document-order
+ * comparison anywhere. (A `Set` still iterates in insertion order; the claim
+ * is that no meaning is attached to it.) No importance and no authored value: `important` is
  * its own guard reason, evaluated against the element rather than the index,
  * and the authored value belongs to the compiled probe that carries it.
  *
@@ -120,6 +121,16 @@
  * stylesheet nobody annotated and bury the ones an author asked for. The
  * paths that compile a probe from an annotation already report the same
  * exclusions against the rule the author actually pointed at.
+ *
+ * The trade-off has a known hole, accepted for this release: those probe
+ * paths fire only when the annotated rule itself is unprobeable. When the
+ * annotated rule is ordinary but a competitor sits inside `@container`,
+ * `@scope`, or `@starting-style` — at-rules that do apply to elements and
+ * can win the cascade — the competitor is absent from the index, and
+ * `guardCandidates()` answers "nothing competes" with no way for the browser
+ * layer to detect the miss. Surfacing "a competitor exists here but cannot
+ * be evaluated" is a candidate for a later issue; doing it only when a probe
+ * yields zero candidates would keep unannotated stylesheets quiet.
  */
 
 import type { Declaration, Root, Rule } from "postcss";
@@ -452,6 +463,20 @@ export function guardCandidates(
   if (isResetByAll(property)) {
     for (const entry of index.all) {
       candidates.add(entry);
+    }
+  }
+
+  // `all` resets every standard property, so no longhand key can reach the
+  // declarations it competes with. A probed `all` therefore walks the index
+  // and keeps every declaration it resets, the mirror of the branch above; a
+  // custom property survives `all` and stays out.
+  if (propertyMatchKey(property) === "all") {
+    for (const bucket of index.byProperty.values()) {
+      for (const entry of bucket) {
+        if (isResetByAll(entry.property)) {
+          candidates.add(entry);
+        }
+      }
     }
   }
 

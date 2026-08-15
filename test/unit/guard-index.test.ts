@@ -163,6 +163,34 @@ test("all is findable under every property key it resets", () => {
   expect(candidateProperties(index, "all")).toEqual(["all"]);
 });
 
+test("a probed all reaches every declaration it resets, and none it does not", () => {
+  const { root, index } = parse(`.a { all: initial; }
+.b {
+  color: red;
+  margin-inline-start: 1px;
+  --brand: blue;
+  direction: rtl;
+}`);
+
+  // `color` and the logical margin are reset by `all`; the custom property
+  // and `direction` survive it and stay out.
+  expect(candidateProperties(index, "all")).toEqual(["all", "color", "margin-inline-start"]);
+
+  const self = entryFor(root, index, "all");
+
+  expect(candidateProperties(index, "all", self)).toEqual(["color", "margin-inline-start"]);
+});
+
+test("an all candidate competes per element through competesInWritingMode", () => {
+  const { root, index } = parse(`.a { all: initial; }
+.b { color: red; }`);
+
+  const allEntry = entryFor(root, index, "all");
+
+  expect(competesInWritingMode(allEntry, "color", "horizontal-tb", "ltr")).toBe(true);
+  expect(competesInWritingMode(allEntry, "direction", "horizontal-tb", "ltr")).toBe(false);
+});
+
 test("all does not compete with the properties it never resets", () => {
   const index = indexOf(`.a { all: initial; }`);
 
