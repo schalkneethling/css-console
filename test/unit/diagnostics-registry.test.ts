@@ -69,6 +69,7 @@ const EXPECTED_DEFINITIONS = {
   INVALID_NESTING_SELECTOR: { severity: "error", category: "annotation" },
   DEFERRED_SCOPE_NESTING: { severity: "warning", category: "deferred" },
   INVALID_FUNCTION_BODY_RULE: { severity: "error", category: "annotation" },
+  UNPARSEABLE_SELECTOR_BRANCH: { severity: "warning", category: "annotation" },
 } as const;
 
 const EXPECTED_CODES = Object.keys(EXPECTED_DEFINITIONS).sort();
@@ -281,6 +282,7 @@ export type RegistryTypeAssertions = [
       | "INVALID_NESTING_SELECTOR"
       | "DEFERRED_SCOPE_NESTING"
       | "INVALID_FUNCTION_BODY_RULE"
+      | "UNPARSEABLE_SELECTOR_BRANCH"
     >
   >,
 
@@ -310,12 +312,19 @@ export const rejectedUnknownCode = (): Diagnostic =>
  * notice. This list shrinks as the phases land; it must never grow without a
  * reason written beside the entry.
  *
- * The emitter check below is a heuristic: it matches any double-quoted
- * occurrence of a code in core source, so a code quoted in a comment would
- * satisfy it without anything emitting it. Tightening the match to
- * `createDiagnostic(...)` call sites would trip on the `reject(...)` and
- * `blocked(...)` helper patterns, so the looser match is deliberate; do not
- * quote a registry code in a core comment.
+ * The emitter check is a heuristic: it matches any double-quoted occurrence
+ * of a code in shipped source, so a code quoted in a comment would satisfy it
+ * without anything emitting it. Tightening the match to `createDiagnostic(...)`
+ * call sites would trip on the `reject(...)` and `blocked(...)` helper
+ * patterns, so the looser match is deliberate; do not quote a registry code in
+ * a comment under src.
+ *
+ * The scan covers src/browser as well as src/core, because a condition only a
+ * live engine can detect is reported from the browser layer and from nowhere
+ * else. `UNPARSEABLE_SELECTOR_BRANCH` is the first such code: the compiler
+ * cannot know that the selector engine will reject a branch, so the matcher
+ * reports it. Scanning core alone would have forced that code onto the pending
+ * list, which would have recorded a gap that does not exist.
  */
 const PENDING_EMITTERS: Readonly<Record<string, string>> = {
   // Source discovery and loading is Phase 3: CSSC-025 loads linked
@@ -326,15 +335,16 @@ const PENDING_EMITTERS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Reads every core source file, so the emitter check searches the code that
- * actually runs rather than the tests that exercise it. A code named only by
- * a test is still a code nothing produces.
+ * Reads every shipped source file under src, so the emitter check searches the
+ * code that actually runs rather than the tests that exercise it. A code named
+ * only by a test is still a code nothing produces. The registry itself is
+ * skipped, because every code appears there by definition.
  */
-function readCoreSources(): string {
-  const root = resolve(import.meta.dirname, "../../src/core");
+function readShippedSources(): string {
+  const root = resolve(import.meta.dirname, "../../src");
   // Resolved rather than suffix-matched, because path.resolve() uses
   // backslash separators on Windows and a slash suffix would never match.
-  const registryPath = resolve(root, "diagnostics", "index.ts");
+  const registryPath = resolve(root, "core", "diagnostics", "index.ts");
   const files: string[] = [];
 
   const walk = (directory: string): void => {
@@ -354,8 +364,8 @@ function readCoreSources(): string {
   return files.join("\n");
 }
 
-test("every registry code is produced by core, or is declared as pending", () => {
-  const sources = readCoreSources();
+test("every registry code is produced by shipped source, or is declared as pending", () => {
+  const sources = readShippedSources();
 
   for (const code of REGISTRY_CODES) {
     const emitted = sources.includes(`"${code}"`);
@@ -363,14 +373,14 @@ test("every registry code is produced by core, or is declared as pending", () =>
 
     expect(
       emitted || pending,
-      `${code} is registered and documented but nothing in src/core produces it, ` +
+      `${code} is registered and documented but nothing under src produces it, ` +
         "and it is not listed in PENDING_EMITTERS",
     ).toBe(true);
   }
 });
 
 test("no code is listed as pending once something produces it", () => {
-  const sources = readCoreSources();
+  const sources = readShippedSources();
 
   for (const [code, issue] of Object.entries(PENDING_EMITTERS)) {
     expect(

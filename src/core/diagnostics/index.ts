@@ -216,6 +216,12 @@ export const DIAGNOSTIC_REGISTRY = {
     "annotation",
     "A style rule is authored inside an @function body. A function body declares custom properties, and may nest @media or @supports conditionals around further declarations, but a style rule has no matched element to apply to; the browser discards it entirely rather than keeping it. Move the rule outside the @function body.",
   ),
+  UNPARSEABLE_SELECTOR_BRANCH: defineDiagnostic(
+    "UNPARSEABLE_SELECTOR_BRANCH",
+    "warning",
+    "annotation",
+    "A selector branch the compiler accepted was rejected by the browser's selector engine, which throws a SyntaxError for a selector it cannot parse. The branch matches no elements and the remaining branches of the selector still match.",
+  ),
 } as const;
 
 /**
