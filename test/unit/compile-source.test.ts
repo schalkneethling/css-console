@@ -234,6 +234,25 @@ test("a compiled function probe's call sites carry the rule context they were re
   ]);
 });
 
+test("a compiled call site nested inside its rule carries the nested condition through compileSource", () => {
+  const compiled = compile(`/* css-console: log */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}
+
+.card {
+  @media (width > 40em) {
+    padding: --space(4);
+  }
+}`);
+
+  const probe = functionProbe(compiled.probes[0]);
+
+  expect(probe.callSites.map((callSite) => callSite.context.entries)).toEqual([
+    [{ kind: "media", condition: "(width > 40em)" }],
+  ]);
+});
+
 test("a function nothing calls compiles to a probe and an informational diagnostic", () => {
   const compiled = compile(`/* css-console: log */
 @function --unused(--n) {
