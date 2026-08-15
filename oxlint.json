@@ -34,9 +34,11 @@
                   "!../*",
                   "!../**",
                   "!postcss",
-                  "!postcss/**"
+                  "!postcss/**",
+                  "!postcss-value-parser",
+                  "!postcss-value-parser/**"
                 ],
-                "message": "Nothing under src/core imports a package or a node: builtin, except postcss, the compiler dependency the parser selection record accepts."
+                "message": "Nothing under src/core imports a package or a node: builtin, except postcss and postcss-value-parser, the compiler dependencies the parser selection record accepts."
               }
             ]
           }
