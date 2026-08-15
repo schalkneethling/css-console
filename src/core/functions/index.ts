@@ -62,7 +62,10 @@ import type { FunctionNode, Node } from "postcss-value-parser";
 import { functionNameOf } from "../annotations/associate.ts";
 import type { AnnotationTarget } from "../annotations/associate.ts";
 
-import { resolveProbePlacement } from "../compiler/index.ts";
+// Imported from the module it lives in rather than through the compiler's
+// entry point, because that entry point composes this module in
+// `compileSource()` and importing it back would close a cycle.
+import { resolveProbePlacement } from "../compiler/placement.ts";
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
 import type { CallSite, SourceLocation } from "../records/index.ts";

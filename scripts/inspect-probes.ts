@@ -3,15 +3,16 @@
  *
  * Where `inspect-annotations.ts` answers "what did the annotation attach to",
  * this answers the next question: given that it attached, what would
- * css-console actually probe? It runs the compiler over a stylesheet and
- * reports, per rule probe, the flattened selector, the branches a matcher
- * would query, the conditions the rule sits under, and the properties the
- * probe covers with their `var()` dependencies.
+ * css-console actually probe? It reports, per probe, the resolved selector,
+ * the branches a matcher would query, the conditions the rule sits under, the
+ * properties the probe covers with their `var()` dependencies, and, for a
+ * function probe, every call site and definition reference.
  *
- * It exists because the compiler produces nothing a person can look at until
- * CSSC-016 composes it and CSSC-029 makes it loadable in a browser. Being
- * able to point this at real CSS now, while the resolution rules are still
- * cheap to change, is worth more than reading the same answer out of a test.
+ * It calls `compileSource()` (CSSC-016) rather than composing the compiler by
+ * hand. Until that function existed this script was a parallel implementation
+ * of the same composition, which meant it could agree with itself while
+ * disagreeing with the package; now what it prints is what a consumer gets,
+ * and a defect it shows is a defect in the real API.
  *
  * Nothing here is evaluated. Selectors are resolved but never matched,
  * conditions are recorded but never tested, and values are read as authored
@@ -27,23 +28,13 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import postcss from "postcss";
-import type { Root, Rule } from "postcss";
-
-import { associateAnnotations } from "../src/core/annotations/index.ts";
-import type { AssociatedAnnotation } from "../src/core/annotations/index.ts";
-import {
-  compileDeclarationProbe,
-  compileRuleContext,
-  compileRuleProbeProperties,
-  splitSelectorBranches,
-} from "../src/core/compiler/index.ts";
+import { compileSource } from "../src/core/compiler/index.ts";
 import type {
-  CompiledRuleProbe,
+  CompiledFunctionProbe,
+  CompiledSource,
+  CompiledValueProbe,
   RuleContextEntry,
-  StyleRuleTarget,
 } from "../src/core/compiler/index.ts";
-import { resolveNestedSelector } from "../src/core/nesting/index.ts";
 import type { Diagnostic, SourceLocation } from "../src/core/records/index.ts";
 
 /** Formats a location as the line:column pair an editor jumps to. */
@@ -67,42 +58,21 @@ function renderContextEntry(entry: RuleContextEntry): string {
   return `@${entry.kind} ${entry.condition}`;
 }
 
-/**
- * Finds the rule a style-rule target names. The compiler locates it the same
- * way, by selector plus exact start position, because association records
- * positions rather than node identity.
- */
-function findRule(root: Root, target: StyleRuleTarget): Rule | undefined {
-  let found: Rule | undefined;
+/** Reports one value probe: where the browser would look, and for what. */
+function reportValueProbe(probe: CompiledValueProbe): void {
+  console.log(`    resolved selector: ${probe.selector}`);
 
-  root.walkRules((rule) => {
-    if (
-      found === undefined &&
-      rule.selector === target.selector &&
-      rule.source?.start?.line === target.source.start.line &&
-      rule.source?.start?.column === target.source.start.column
-    ) {
-      found = rule;
-    }
-  });
-
-  return found;
-}
-
-/**
- * Reports the properties a compiled probe covers, with the custom properties
- * each value depends on, and returns the number of errors reported. Shared by
- * both probe kinds, because they compile to the same property record.
- */
-function reportProperties(compiled: CompiledRuleProbe, indent: string): number {
-  let errors = 0;
-
-  for (const diagnostic of compiled.diagnostics) {
-    reportDiagnostic(diagnostic, indent);
-    errors += diagnostic.severity === "error" ? 1 : 0;
+  if (probe.context.entries.length > 0) {
+    console.log(`    conditions: ${probe.context.entries.map(renderContextEntry).join(" > ")}`);
   }
 
-  for (const property of compiled.properties) {
+  for (const branch of probe.branches) {
+    const pseudo = branch.pseudo === null ? "" : `  pseudo ${branch.pseudo}`;
+
+    console.log(`    query: ${branch.selector}${pseudo}  ${branch.probeId}`);
+  }
+
+  for (const property of probe.properties) {
     const important = property.important ? " !important" : "";
     const references = property.customProperties.map((reference) => reference.name).join(", ");
     const depends = references === "" ? "" : `   depends on ${references}`;
@@ -111,72 +81,62 @@ function reportProperties(compiled: CompiledRuleProbe, indent: string): number {
     // record; only this report collapses it onto one line.
     const authored = property.authored.replace(/\s+/gu, " ").trim();
 
-    console.log(`${indent}property ${property.name}: ${authored}${important}${depends}`);
+    console.log(`    property ${property.name}: ${authored}${important}${depends}`);
   }
-
-  return errors;
 }
 
-/**
- * Reports one rule probe: where the browser would look, under what
- * conditions, and for which properties.
- */
-function reportRuleProbe(root: Root, associated: AssociatedAnnotation, url: string): number {
-  const target = associated.target as StyleRuleTarget;
-  const rule = findRule(root, target);
+/** Reports one function probe: every call of it, and every reference to it. */
+function reportFunctionProbe(probe: CompiledFunctionProbe): void {
+  console.log(`    function: ${probe.functionName}  ${probe.probeId}`);
 
-  console.log(`    authored selector: ${target.selector}`);
+  for (const callSite of probe.callSites) {
+    const sole = callSite.soleContribution ? "sole contribution" : "one contribution among others";
 
-  if (rule === undefined) {
-    console.log("    (could not be located in the parsed tree)");
-    return 0;
+    console.log(
+      `    call: ${callSite.selector} { ${callSite.property}: ` +
+        `${probe.functionName}(${callSite.arguments.join(", ")}) }  ${sole}`,
+    );
   }
+
+  for (const reference of probe.definitionReferences) {
+    console.log(
+      `    reference: inside ${reference.functionName}, as ${reference.property}, at ` +
+        `${position(reference.source)}`,
+    );
+  }
+}
+
+/** Reports one compiled source, returning the number of errors reported. */
+function report(path: string, compiled: CompiledSource): number {
+  console.log(`\n${path}`);
 
   let errors = 0;
 
-  const context = compileRuleContext(rule, url);
-
-  for (const diagnostic of context.diagnostics) {
-    reportDiagnostic(diagnostic, "    ");
+  for (const diagnostic of compiled.diagnostics) {
+    reportDiagnostic(diagnostic, "  ");
     errors += diagnostic.severity === "error" ? 1 : 0;
   }
 
-  if (context.context !== null && context.context.entries.length > 0) {
-    console.log(`    conditions: ${context.context.entries.map(renderContextEntry).join(" > ")}`);
+  if (compiled.probes.length === 0) {
+    console.log("  no probes compiled");
+    return errors;
   }
 
-  const nesting = resolveNestedSelector(rule, url);
+  for (const probe of compiled.probes) {
+    const label = probe.label === undefined ? "" : `  label ${probe.label}`;
+    const kind = probe.kind === "value" ? "value" : "function";
 
-  for (const diagnostic of nesting.diagnostics) {
-    reportDiagnostic(diagnostic, "    ");
-    errors += diagnostic.severity === "error" ? 1 : 0;
+    console.log(`\n  ${position(probe.annotation)}  ${kind} probe${label}`);
+
+    if (probe.kind === "value") {
+      reportValueProbe(probe);
+      continue;
+    }
+
+    reportFunctionProbe(probe);
   }
 
-  if (nesting.selector !== null) {
-    if (nesting.selector !== target.selector) {
-      console.log(`    resolved selector: ${nesting.selector}`);
-    }
-
-    const split = splitSelectorBranches(nesting.selector, target.source);
-
-    for (const diagnostic of split.diagnostics) {
-      reportDiagnostic(diagnostic, "    ");
-      errors += diagnostic.severity === "error" ? 1 : 0;
-    }
-
-    for (const branch of split.branches) {
-      const pseudo = branch.pseudo === null ? "" : `  pseudo ${branch.pseudo}`;
-      console.log(`    query: ${branch.selector}${pseudo}`);
-    }
-  }
-
-  return (
-    errors +
-    reportProperties(
-      compileRuleProbeProperties(root, target, associated.annotation.properties),
-      "    ",
-    )
-  );
+  return errors;
 }
 
 /** Inspects one stylesheet, returning the number of errors reported. */
@@ -190,63 +150,15 @@ function inspect(path: string): number {
     return 1;
   }
 
-  const url = pathToFileURL(path).href;
-
-  let root: Root;
-  let associated: ReturnType<typeof associateAnnotations>;
-
   try {
-    root = postcss.parse(css, { from: url });
-    associated = associateAnnotations(css, { url });
+    return report(path, compileSource(css, { url: pathToFileURL(path).href }));
   } catch (error) {
     // Malformed CSS is ordinary input for an inspection tool, so report it
     // the way an unreadable file is reported and carry on to the next path
     // rather than ending the run with a stack trace.
-    console.error(`\n${path}\n  could not be parsed: ${(error as Error).message}`);
+    console.error(`\n${path}\n  could not be compiled: ${(error as Error).message}`);
     return 1;
   }
-
-  const { annotations, diagnostics } = associated;
-
-  console.log(`\n${path}`);
-
-  let errors = 0;
-
-  for (const diagnostic of diagnostics) {
-    reportDiagnostic(diagnostic, "  ");
-    errors += diagnostic.severity === "error" ? 1 : 0;
-  }
-
-  if (annotations.length === 0) {
-    console.log("  no annotations attached");
-    return errors;
-  }
-
-  for (const associated of annotations) {
-    const { target } = associated;
-    const label =
-      associated.annotation.label === undefined ? "" : `  label ${associated.annotation.label}`;
-
-    console.log(`\n  ${position(associated.source)}  ${target.kind} probe${label}`);
-
-    if (target.kind === "style-rule") {
-      errors += reportRuleProbe(root, associated, url);
-      continue;
-    }
-
-    if (target.kind === "declaration") {
-      console.log(`    declaration: ${target.property}`);
-      errors += reportProperties(compileDeclarationProbe(root, target), "    ");
-      continue;
-    }
-
-    // Call-site resolution is CSSC-013, so a function probe still has only
-    // its association to show.
-    console.log(`    function: ${target.functionName}`);
-    console.log("    (call-site resolution has not landed yet)");
-  }
-
-  return errors;
 }
 
 // `vp run inspect:probes -- file.css` forwards the separator itself.
