@@ -119,6 +119,12 @@ test("hashProbeParts is a pure function of its parts, pinned against the publish
   // 0xe40c292c as the FNV-1a hash of the single byte "a". Pinning both
   // proves this implementation against the specification rather than
   // against its own output.
+  //
+  // The vectors match the published byte-level FNV-1a only because they are
+  // ASCII: the implementation walks UTF-16 code units, so a non-ASCII input
+  // hashes as a 16-bit-word variant that diverges from the reference. A
+  // future vector pinned from the FNV reference for non-ASCII input is
+  // expected to mismatch; that is disclosed behavior, not a regression.
   expect(hashProbeParts([""])).toBe("811c9dc5");
   expect(hashProbeParts(["a"])).toBe("e40c292c");
 });
@@ -269,6 +275,13 @@ test("portableSource reduces a file: URL, a bare filesystem path, and a Windows 
   expect(portableSource("/Users/someone/project/app.css")).toBe("app.css");
   expect(portableSource("/home/other/project/app.css")).toBe("app.css");
   expect(portableSource("C:\\Users\\someone\\project\\app.css")).toBe("app.css");
+});
+
+test("portableSource strips a query string or fragment from a local source too", () => {
+  expect(portableSource("file:///tmp/app.css?v=2")).toBe("app.css");
+  expect(portableSource("file:///tmp/app.css#frag")).toBe("app.css");
+  expect(portableSource("file:///tmp/app.css?v=2#frag")).toBe("app.css");
+  expect(portableSource("/tmp/app.css?v=2")).toBe("app.css");
 });
 
 test("a function probe identifier is stable across call-site additions elsewhere in the source", () => {

@@ -254,7 +254,7 @@ export function portableSource(url: string): string {
     return withoutQueryAndFragment(url);
   }
 
-  return lastPathSegment(url);
+  return lastPathSegment(withoutQueryAndFragment(url));
 }
 
 /** The inputs that make up a value probe's identity. See the module doc comment. */
