@@ -62,10 +62,9 @@ import type { FunctionNode, Node } from "postcss-value-parser";
 import { functionNameOf } from "../annotations/associate.ts";
 import type { AnnotationTarget } from "../annotations/associate.ts";
 
-import { compileRuleContext } from "../compiler/index.ts";
+import { resolveProbePlacement } from "../compiler/index.ts";
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
-import { resolveNestedSelector } from "../nesting/index.ts";
 import type { CallSite, SourceLocation } from "../records/index.ts";
 
 /** The function target shape a function probe resolves call sites from. */
@@ -268,42 +267,6 @@ function enclosingRule(declaration: Declaration): Rule | undefined {
 }
 
 /**
- * Where a call-bearing declaration sits: in a rule whose selector and context
- * this release can honestly probe, or nowhere it can, with the diagnostics
- * that say why.
- */
-type DeclarationPlacement =
-  | { probed: true; selector: string; rule: Rule }
-  | { probed: false; diagnostics: readonly Diagnostic[] };
-
-/**
- * Decides whether the rule a call sits in can be probed, and with what flat
- * selector.
- *
- * Rule-context compilation runs first, because a rule inside `@container`,
- * `@keyframes`, `@scope`, or `@starting-style` is excluded for a reason that
- * has nothing to do with its selector, and reporting that reason is more
- * useful than reporting that the selector could not be flattened. Nesting
- * resolution runs second and supplies the flat selector the call site
- * records, which is why call-site resolution is ordered after it.
- */
-function placementOf(rule: Rule, url: string): DeclarationPlacement {
-  const context = compileRuleContext(rule, url);
-
-  if (context.context === null) {
-    return { probed: false, diagnostics: context.diagnostics };
-  }
-
-  const nesting = resolveNestedSelector(rule, url);
-
-  if (nesting.selector === null) {
-    return { probed: false, diagnostics: nesting.diagnostics };
-  }
-
-  return { probed: true, selector: nesting.selector, rule };
-}
-
-/**
  * The message an at-rule that declares rather than styles carries when a call
  * is found inside it. A descriptor such as `@property`'s `initial-value` has
  * no element to resolve against, so there is no call site to report even
@@ -401,7 +364,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
     }
 
     const rule = owner;
-    const placement = placementOf(rule, url);
+    const placement = resolveProbePlacement(rule, url);
 
     if (!placement.probed) {
       if (!reported.has(rule)) {

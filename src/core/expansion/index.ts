@@ -414,16 +414,28 @@ export function isResetByAll(property: string): boolean {
  * deprecated pre-standard spelling and is not supported; `sideways-rl` and
  * `sideways-lr` are its standardized replacements alongside `vertical-rl`
  * and `vertical-lr`.
+ *
+ * The list is a value rather than only a type because a caller that has no
+ * element in hand, such as the guard index deciding whether a logical
+ * declaration could ever address a given physical property, has to consider
+ * every writing mode at once. Deriving `WritingMode` from the array rather
+ * than declaring the two separately means the enumeration and the type
+ * cannot drift apart.
  */
-export type WritingMode =
-  | "horizontal-tb"
-  | "vertical-rl"
-  | "vertical-lr"
-  | "sideways-rl"
-  | "sideways-lr";
+export const WRITING_MODES = [
+  "horizontal-tb",
+  "vertical-rl",
+  "vertical-lr",
+  "sideways-rl",
+  "sideways-lr",
+] as const;
+
+export type WritingMode = (typeof WRITING_MODES)[number];
 
 /** The two directions the logical table resolves against. */
-export type Direction = "ltr" | "rtl";
+export const DIRECTIONS = ["ltr", "rtl"] as const;
+
+export type Direction = (typeof DIRECTIONS)[number];
 
 /**
  * A function that resolves a logical property to the physical longhand it
