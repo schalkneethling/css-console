@@ -66,12 +66,26 @@ import type { AnnotationTarget } from "../annotations/associate.ts";
 // entry point, because that entry point composes this module in
 // `compileSource()` and importing it back would close a cycle.
 import { resolveProbePlacement } from "../compiler/placement.ts";
+import type { RuleContext } from "../compiler/rule-context.ts";
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
 import type { CallSite, SourceLocation } from "../records/index.ts";
 
 /** The function target shape a function probe resolves call sites from. */
 export type FunctionTarget = Extract<AnnotationTarget, { kind: "function" }>;
+
+/**
+ * A call site plus the rule context it was resolved from.
+ *
+ * `context` rides on the resolution rather than on `CallSite` itself.
+ * `CallSite` is a published record contract: it describes an observation
+ * already made, evaluated and reported, and a browser evaluation has no
+ * further use for the conditions that once gated it. A resolved call site is
+ * the opposite: compilation has finished, but the conditions enclosing it
+ * still need to be evaluated before it is honest to report a value, which is
+ * exactly what CSSC-017 does with the context carried here.
+ */
+export type ResolvedCallSite = CallSite & { context: RuleContext };
 
 /**
  * One call of the annotated function from inside another function's body.
@@ -102,7 +116,7 @@ export type DefinitionReference = {
  * answer an author is looking for.
  */
 export type CallSiteResolution = {
-  callSites: readonly CallSite[];
+  callSites: readonly ResolvedCallSite[];
   definitionReferences: readonly DefinitionReference[];
   diagnostics: readonly Diagnostic[];
 };
@@ -309,7 +323,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
   const { url } = target.source;
   const name = target.functionName;
 
-  const callSites: CallSite[] = [];
+  const callSites: ResolvedCallSite[] = [];
   const definitionReferences: DefinitionReference[] = [];
   const diagnostics: Diagnostic[] = [];
   const reported = new Set<Rule>();
@@ -385,6 +399,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
         soleContribution: isSoleContribution(parsed.nodes, call),
         selector: placement.selector,
         source: locationOf(declaration, url),
+        context: placement.context,
       });
     }
   });

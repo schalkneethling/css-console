@@ -56,7 +56,7 @@ import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
-import type { CallSite, LogLevel, SourceLocation } from "../records/index.ts";
+import type { LogLevel, SourceLocation } from "../records/index.ts";
 
 import { associateAnnotations } from "../annotations/index.ts";
 import type { AnnotationTarget, AssociatedAnnotation } from "../annotations/associate.ts";
@@ -64,7 +64,7 @@ import type { AnnotationTarget, AssociatedAnnotation } from "../annotations/asso
 import { propertyMatchKey } from "../expansion/index.ts";
 
 import { resolveCallSites } from "../functions/index.ts";
-import type { DefinitionReference, FunctionTarget } from "../functions/index.ts";
+import type { DefinitionReference, FunctionTarget, ResolvedCallSite } from "../functions/index.ts";
 
 import { buildGuardIndex, indexedDeclarationOf } from "./guard-index.ts";
 import type { GuardIndex, IndexedDeclaration } from "./guard-index.ts";
@@ -768,7 +768,7 @@ export type CompiledValueProbe = {
  * `FunctionRecord.probeId` publishes, function probe plus call site, so that
  * nothing downstream has to know the two halves exist.
  */
-export type CompiledCallSite = CallSite & {
+export type CompiledCallSite = ResolvedCallSite & {
   probeId: string;
 };
 
