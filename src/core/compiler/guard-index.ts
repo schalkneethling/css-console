@@ -10,7 +10,7 @@
  * declare it.
  *
  * What the index stores is bounded by that one question, and the bound is
- * enforced rather than described. An `IndexedDeclaration` carries three
+ * enforced rather than described. An `IndexedDeclaration` carries four
  * fields:
  *
  * - `property`, the authored spelling, because deciding whether two
@@ -20,7 +20,11 @@
  *   check happens per element in the browser layer;
  * - `context`, the rule context verbatim, because a declaration inside an
  *   inactive `@media` or `@supports` never applied and must not count
- *   (CSSC-017 evaluates the conditions; this module only carries them).
+ *   (CSSC-017 evaluates the conditions; this module only carries them);
+ * - `important`, whether the declaration was authored with `!important`,
+ *   because the `important` guard reason (CSSC-021) fires when a competing
+ *   declaration carries the flag, and the browser layer never sees the
+ *   parsed declaration the flag lives on.
  *
  * Nothing else is stored, and each omission is a decision. No source
  * location: the guard reports that something competes, never where it is, so
@@ -30,9 +34,16 @@
  * from. No rank: candidates come back as a `Set` with no rank attached,
  * because the guard performs no specificity, layer, or document-order
  * comparison anywhere. (A `Set` still iterates in insertion order; the claim
- * is that no meaning is attached to it.) No importance and no authored value: `important` is
- * its own guard reason, evaluated against the element rather than the index,
- * and the authored value belongs to the compiled probe that carries it.
+ * is that no meaning is attached to it.) No authored value: it belongs to the
+ * compiled probe that carries it, and the guard never presents a competitor's
+ * value.
+ *
+ * `important` joined the entry with CSSC-021, and it is the one cascade-facing
+ * fact stored, because the `important` guard reason fires when a competing
+ * declaration carries the flag and the browser layer never sees the parsed
+ * declaration the flag lives on. Carrying the flag is not comparing it: the
+ * guard reports that an important competitor exists and still names no
+ * winner.
  *
  * A `@layer` entry does ride along inside `context`, because that is what
  * `compileRuleContext()` returns as one unit. It is never read here and never
@@ -160,6 +171,7 @@ export type IndexedDeclaration = {
   property: string;
   selector: string;
   context: RuleContext;
+  important: boolean;
 };
 
 /**
@@ -381,6 +393,7 @@ export function buildGuardIndex(root: Root, url: string): GuardIndex {
       property: declaration.prop,
       selector: placement.selector,
       context: placement.context,
+      important: declaration.important === true,
     };
 
     for (const key of longhandKeys(declaration.prop)) {
