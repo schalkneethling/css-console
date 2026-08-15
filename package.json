@@ -43,6 +43,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
+    "postcss": "^8.5.23",
     "postcss-value-parser": "^4.2.0"
   },
   "devDependencies": {
@@ -55,7 +56,6 @@
     "oxfmt": "^0.60.0",
     "oxlint": "^1.75.0",
     "playwright": "^1.62.0",
-    "postcss": "^8.5.23",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0",
     "stylelint-order": "^8.1.1",
