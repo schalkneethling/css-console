@@ -27,7 +27,7 @@
 export { splitSelectorBranches } from "./selector.ts";
 export type { SelectorBranch, SelectorSplit } from "./selector.ts";
 
-export { compileRuleContext } from "./rule-context.ts";
+export { compileDeclarationContext, compileRuleContext } from "./rule-context.ts";
 export type { RuleContext, RuleContextEntry, RuleContextResolution } from "./rule-context.ts";
 
 export { resolveProbePlacement } from "./placement.ts";
