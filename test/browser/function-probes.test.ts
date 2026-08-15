@@ -5,7 +5,7 @@ import type { CompiledFunctionProbe } from "../../src/core/compiler/index.ts";
 import {
   evaluateFunctionProbe,
   supportsCustomFunctions,
-} from "../../src/browser/evaluator/function-probes.ts";
+} from "../../src/browser/evaluator/index.ts";
 
 /**
  * Function probe evaluation, checked against the engine that resolves.
@@ -220,24 +220,20 @@ test("a sole-contribution call reports the property's value, which the property 
 
   expect(callSite.soleContribution).toBe(true);
 
-  withFixture(
-    `<div class="frame"><div class="column" id="target"></div></div>`,
-    css,
-    (host) => {
-      const evaluation = evaluateFunctionProbe(probe);
+  withFixture(`<div class="frame"><div class="column" id="target"></div></div>`, css, (host) => {
+    const evaluation = evaluateFunctionProbe(probe);
 
-      // The function returns a percentage, and the reported value is pixels,
-      // because `width` resolves the percentage against the containing block
-      // before anything can observe it. The value a record carries is the
-      // property's resolved value, never the function's return value, and
-      // `soleContribution` claims only that no other authored expression
-      // contributed to it.
-      expect(evaluation.callSites[0]?.evaluations).toEqual([
-        { element: elementById(host, "target"), resolved: "150px" },
-      ]);
-      expect(evaluation.callSites[0]?.callSite.soleContribution).toBe(true);
-    },
-  );
+    // The function returns a percentage, and the reported value is pixels,
+    // because `width` resolves the percentage against the containing block
+    // before anything can observe it. The value a record carries is the
+    // property's resolved value, never the function's return value, and
+    // `soleContribution` claims only that no other authored expression
+    // contributed to it.
+    expect(evaluation.callSites[0]?.evaluations).toEqual([
+      { element: elementById(host, "target"), resolved: "150px" },
+    ]);
+    expect(evaluation.callSites[0]?.callSite.soleContribution).toBe(true);
+  });
 });
 
 test("a nested call reports the property's value and stays a non-sole contribution", () => {
@@ -505,9 +501,7 @@ test("a call of a function the document never defines resolves to the property's
     // and the property takes its inherited or initial value instead, which is
     // then resolved: an empty paragraph has no content to make it tall, and
     // the inherited color is the document default.
-    expect(evaluation.callSites[0]?.evaluations).toEqual([
-      { element, resolved: "0px" },
-    ]);
+    expect(evaluation.callSites[0]?.evaluations).toEqual([{ element, resolved: "0px" }]);
     expect(getComputedStyle(element).getPropertyValue("color")).toBe("rgb(0, 0, 0)");
   });
 });

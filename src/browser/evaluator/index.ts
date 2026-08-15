@@ -61,6 +61,13 @@
  *   anything a `::placeholder` rule wrote. The other seven report their own
  *   cascaded style whether or not a box is generated.
  *
+ * Function probe evaluation is the other half of this module and lives in
+ * ./function-probes.ts, re-exported here so that the evaluator presents one
+ * entry point, matching how the compiler presents its own multi-file module. A
+ * call site reads one property from one element, and it needs no authored
+ * value, no guard entry, and no flow facts, so it reads its own value rather
+ * than routing through `readResolvedValues()`; that module records why.
+ *
  * The `display: none` fallback is the same behavior seen from another angle,
  * and it needs no code here either. Resolved values fall back to computed
  * values for an element with no box, which Chromium 151.0.7922.34 confirms:
@@ -70,6 +77,14 @@
  * anything. The fallback belongs to the engine, so this module reports it
  * rather than implementing it.
  */
+
+export { evaluateFunctionProbe, supportsCustomFunctions } from "./function-probes.ts";
+export type {
+  CallSiteEvaluation,
+  EvaluatedCallSite,
+  FunctionProbeEvaluation,
+  FunctionProbeEvaluationOptions,
+} from "./function-probes.ts";
 
 import { DIRECTIONS, WRITING_MODES, propertyMatchKey } from "../../core/expansion/index.ts";
 import type { Direction, WritingMode } from "../../core/expansion/index.ts";
