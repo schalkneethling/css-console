@@ -39,12 +39,22 @@
  * (implementation plan section 5.9). `querySelectorAll()` and
  * `compareDocumentPosition()` are both reads, and the returned matches carry
  * the live elements rather than copies of them.
+ *
+ * The other half of this module is match limiting, in ./limits.ts and
+ * re-exported here. Matching decides which elements a probe reaches;
+ * limiting decides how many of them a scan evaluates. The two are kept
+ * separate because limiting has no browser dependency of its own, but it is
+ * presented from this entry point because a limit is meaningless without the
+ * document order matching establishes.
  */
 
 import { createDiagnostic } from "../../core/diagnostics/index.ts";
 import type { Diagnostic } from "../../core/diagnostics/index.ts";
 import type { CompiledProbeBranch } from "../../core/compiler/index.ts";
 import type { SourceLocation } from "../../core/records/index.ts";
+
+export { DEFAULT_MAX_ELEMENTS, limitMatches, validateMaxElements } from "./limits.ts";
+export type { MatchLimitResult } from "./limits.ts";
 
 /**
  * One matched element paired with the branch that reached it. The branch
