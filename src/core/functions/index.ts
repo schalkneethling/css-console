@@ -218,16 +218,48 @@ function* ancestorsOfDeclaration(declaration: Declaration): Generator<Container 
  * Returns the `@function` at-rule a declaration is authored inside, or
  * undefined when it is not inside one.
  *
- * The whole ancestor chain is walked rather than the immediate parent alone,
+ * The ancestor chain is walked rather than the immediate parent alone,
  * because a function body may wrap its declarations in `@media` or
- * `@supports` conditionals. At-keywords are ASCII case-insensitive and
- * PostCSS preserves the case the author wrote, so the comparison normalises;
- * the name reported back to an author never does.
+ * `@supports` conditionals. The walk stops at a style rule, because a style
+ * rule inside a function body is discarded CSS: `compileRuleContext` reports
+ * it as `INVALID_FUNCTION_BODY_RULE`, and a call inside it must reach that
+ * diagnostic through rule placement rather than be presented as a live
+ * definition reference. At-keywords are ASCII case-insensitive and PostCSS
+ * preserves the case the author wrote, so the comparison normalises; the
+ * name reported back to an author never does.
  */
 function enclosingFunction(declaration: Declaration): AtRule | undefined {
   for (const ancestor of ancestorsOfDeclaration(declaration)) {
+    if (ancestor.type === "rule") {
+      return undefined;
+    }
+
     if (ancestor.type === "atrule" && (ancestor as AtRule).name.toLowerCase() === "function") {
       return ancestor as AtRule;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Returns the nearest ancestor style rule of a declaration, or undefined when
+ * no rule encloses it.
+ *
+ * CSS nesting allows a conditional at-rule inside a style rule to hold
+ * declarations directly, as in `.card { @media (width > 40em) { padding:
+ * --space(4); } }`, and those declarations apply to the nearest ancestor
+ * style rule. The walk continues through at-rule ancestors only, so a
+ * declaration inside a descriptor at-rule at the top level stays unowned.
+ */
+function enclosingRule(declaration: Declaration): Rule | undefined {
+  for (const ancestor of ancestorsOfDeclaration(declaration)) {
+    if (ancestor.type === "rule") {
+      return ancestor as Rule;
+    }
+
+    if (ancestor.type !== "atrule") {
+      return undefined;
     }
   }
 
@@ -310,7 +342,12 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
       return;
     }
 
-    if (parent.type === "atrule") {
+    // A nested conditional at-rule may hold declarations directly, and those
+    // apply to the nearest ancestor style rule, so ownership is resolved
+    // before the descriptor path.
+    const owner = parent.type === "rule" ? (parent as Rule) : enclosingRule(declaration);
+
+    if (owner === undefined && parent.type === "atrule") {
       diagnostics.push(
         createDiagnostic("OUTSIDE_SUPPORTED_TARGET_SET", {
           message: descriptorMessage((parent as AtRule).name),
@@ -322,11 +359,11 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
       return;
     }
 
-    if (parent.type !== "rule") {
+    if (owner === undefined) {
       return;
     }
 
-    const rule = parent as Rule;
+    const rule = owner;
     const placement = resolveProbePlacement(rule, url);
 
     if (!placement.probed) {
@@ -344,7 +381,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
         arguments: argumentsOf(call),
         soleContribution: isSoleContribution(parsed.nodes, call),
         selector: placement.selector,
-        source: locationOf(rule, url),
+        source: locationOf(declaration, url),
       });
     }
   });

@@ -358,6 +358,48 @@ test("a call inside @media is a call site, because a condition is not an exclusi
   expect(result.callSites[0]?.selector).toBe(".card");
 });
 
+test("a nested conditional holding declarations directly still yields a call site", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  @media (width > 40em) {
+    padding: --space(4);
+  }
+}`);
+
+  expect(result.callSites).toHaveLength(1);
+  expect(result.callSites[0]?.selector).toBe(".card");
+  expect(codes(result)).toEqual([]);
+});
+
+test("a call site's source is the declaration, so calls in different declarations are distinguishable", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  padding: --space(4);
+  margin: --space(2);
+}`);
+
+  expect(result.callSites).toHaveLength(2);
+
+  const [first, second] = result.callSites;
+
+  expect(first?.source.start.line).not.toBe(second?.source.start.line);
+});
+
+test("a call in a style rule nested in a function body reports the discarded rule, not a reference", () => {
+  const result = resolve(`${DEFINITION}
+@function --other() {
+  .inner {
+    color: --space(2);
+  }
+
+  result: 1px;
+}`);
+
+  expect(result.definitionReferences).toEqual([]);
+  expect(result.callSites).toEqual([]);
+  expect(codes(result)).toContain("INVALID_FUNCTION_BODY_RULE");
+});
+
 test("name matching is case-sensitive, because a function name is a dashed-ident", () => {
   const result = resolve(`${DEFINITION}
 .card {
