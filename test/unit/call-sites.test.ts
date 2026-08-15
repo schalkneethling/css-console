@@ -506,6 +506,44 @@ test("a call in a declaration outside a style rule is excluded", () => {
   expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET", "NO_CALL_SITES"]);
 });
 
+test("a call site in a bare rule carries a context with no entries", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  padding: --space(4);
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([]);
+});
+
+test("a call site inside @media carries that condition as its context", () => {
+  const result = resolve(`${DEFINITION}
+@media (width > 40em) {
+  .card {
+    padding: --space(4);
+  }
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+  ]);
+});
+
+test("a call site inside nested @supports inside @media carries both entries outermost-first", () => {
+  const result = resolve(`${DEFINITION}
+@media (width > 40em) {
+  @supports (gap: 1rem) {
+    .card {
+      padding: --space(4);
+    }
+  }
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+    { kind: "supports", condition: "(gap: 1rem)" },
+  ]);
+});
+
 test("call sites are reported in source order", () => {
   const result = resolve(`${DEFINITION}
 .panel {
