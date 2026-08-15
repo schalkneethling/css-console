@@ -597,8 +597,14 @@ test("engine fact: getKeyframes() reports camel-case property keys and omits cus
   await withLiveFixture(
     `<p class="card"></p>`,
     ``,
-    `@keyframes guard-facts { from { margin-left: 0px; --tone: red; } to { margin-left: 100px; } }
-.card { animation: guard-facts 100s linear; }`,
+    `@property --tone {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: blue;
+}
+
+@keyframes guard-facts { from { margin-left: 0px; --tone: red; } to { margin-left: 100px; --tone: green; } }
+.card { animation: guard-facts 100s step-end; }`,
     async (host) => {
       const element = host.querySelector(".card");
 
@@ -622,8 +628,20 @@ test("engine fact: getKeyframes() reports camel-case property keys and omits cus
 
       expect(keys).toContain("marginLeft");
       // A custom property authored in a keyframe does not surface, which is
-      // the recorded false negative for custom-property animations.
+      // the recorded false negative for custom-property animations. The
+      // omission is not about registration: `--tone` is registered through
+      // `@property` with a color syntax in this fixture, the animation is
+      // genuinely running as a typed interpolation, and the keyframe objects
+      // still carry no trace of it, so the gap is in the `getKeyframes()`
+      // serialization rather than in how the property animates.
       expect(keys).not.toContain("--tone");
+
+      // The registered property really is animating: while the animation
+      // runs it computes to the `from` keyframe's red rather than the
+      // registered initial value of blue. The `step-end` timing function
+      // holds the `from` value exactly until the animation ends, so the
+      // assertion does not depend on how much time elapsed before the read.
+      expect(getComputedStyle(element).getPropertyValue("--tone")).toBe("rgb(255, 0, 0)");
     },
   );
 });

@@ -37,7 +37,11 @@
  *   module to detect the miss.
  * - A keyframes animation on a custom property is invisible, because
  *   `getKeyframes()` in Chromium 151.0.7922.34 omits custom properties from
- *   the keyframe objects it returns; the browser suite pins the omission.
+ *   the keyframe objects it returns. Registration does not change this: a
+ *   property registered through `@property` with a color syntax animates as
+ *   a typed interpolation, and its keyframes still surface no trace of it,
+ *   so the gap is in the `getKeyframes()` serialization rather than in how
+ *   the property animates. The browser suite pins both halves.
  * - A candidate whose selector the engine refuses to parse is skipped,
  *   because `matches()` throws a `SyntaxError` `DOMException` on it
  *   (Chromium 151.0.7922.34, pinned in the browser suite), and a selector
