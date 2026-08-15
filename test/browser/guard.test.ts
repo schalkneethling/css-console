@@ -629,8 +629,14 @@ test("engine fact: getKeyframes() reports camel-case property keys and omits cus
 });
 
 test("engine fact: CSS.supports() cannot discriminate on a custom-property destination", () => {
+  // A custom property accepts nearly any token stream, so the call answers
+  // true for values no standard property would take; only a stream that is
+  // not a valid <declaration-value> at all, such as an unbalanced brace, is
+  // refused. The guard therefore skips the validity check for a
+  // custom-property destination rather than relying on a vacuous answer.
   expect(CSS.supports("--anything", "10px")).toBe(true);
-  expect(CSS.supports("--anything", "not even a value }")).toBe(true);
+  expect(CSS.supports("--anything", "arbitrary words")).toBe(true);
+  expect(CSS.supports("--anything", "}")).toBe(false);
 });
 
 test("engine fact: CSS.supports() accepts any declaration containing var()", () => {

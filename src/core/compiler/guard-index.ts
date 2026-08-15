@@ -292,8 +292,16 @@ function physicalKeys(
  * property rather than an enumerable set of longhands, so `isResetByAll()`
  * answers for it. Everything else reduces to whether the two names' terminal
  * longhand sets are disjoint once each has been resolved against the flow.
+ * Two custom property names reduce to a literal comparison the same way,
+ * because each keys under itself.
+ *
+ * Exported for the guard (CSSC-021), which answers the same question about
+ * names that never pass through the index: an inline style declaration and
+ * an animated property both compete with a probed property by exactly this
+ * test, and reimplementing it in the browser layer would be the second,
+ * subtly different notion of competition this module exists to prevent.
  */
-function propertiesCompete(
+export function propertiesCompete(
   first: string,
   second: string,
   writingMode: WritingMode,
