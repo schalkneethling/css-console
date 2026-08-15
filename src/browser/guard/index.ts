@@ -61,17 +61,56 @@ import {
   guardCandidates,
   propertiesCompete,
 } from "../../core/compiler/index.ts";
-import type { CompiledProbeProperty, GuardIndex } from "../../core/compiler/index.ts";
+import type {
+  CustomPropertyReference,
+  GuardIndex,
+  IndexedDeclaration,
+} from "../../core/compiler/index.ts";
 import type { Direction, WritingMode } from "../../core/expansion/index.ts";
 import type { GuardReason, ValueGuard } from "../../core/records/index.ts";
 
 import { isContextActive } from "../conditions/index.ts";
 
 /**
+ * The probed declaration as the guard actually consumes it: the fields the
+ * five reasons read, and nothing else.
+ *
+ * This type exists so that the guard's dependencies are explicit rather than
+ * inherited. The guard historically took `CompiledProbeProperty`, which also
+ * carries a source location the guard never reads, and which only a value
+ * probe can produce; a function record needs the same guard for its call
+ * site's destination property, and a call site is not a compiled property.
+ * `CompiledProbeProperty` satisfies this shape structurally, so a value
+ * probe's property passes through unchanged, while a call site constructs
+ * the subject explicitly and documents the fields it cannot honestly fill.
+ *
+ * - `name` is the property the reasons compete against.
+ * - `authored` is the declaration's value as written, which the
+ *   unresolved-variable reason substitutes references into. A caller that
+ *   did not retain the authored value passes the empty string, and the
+ *   reason then never fires, because `customProperties` gates the check.
+ * - `important` is whether the probed declaration itself carries
+ *   `!important`, kept for parity with the compiled property shape.
+ * - `customProperties` lists the `var()` references the authored value
+ *   contains, and an empty list disables the unresolved-variable reason.
+ * - `indexed` is the declaration's own guard index entry, which excludes the
+ *   declaration from its own competitors, or `null` when the index holds no
+ *   entry for it.
+ */
+export type GuardSubject = {
+  name: string;
+  authored: string;
+  important: boolean;
+  customProperties: readonly CustomPropertyReference[];
+  indexed: IndexedDeclaration | null;
+};
+
+/**
  * Everything one guard evaluation consumes: the element the value was read
- * from, the compiled property carrying its authored value, importance, custom
- * property references, and its own index entry, the guard index over the
- * property's source, and the flow facts of the box the value came from.
+ * from, the guard subject carrying the probed declaration's authored value,
+ * importance, custom property references, and its own index entry, the guard
+ * index over the property's source, and the flow facts of the box the value
+ * came from.
  *
  * `writingMode` and `direction` come from `readResolvedValues()` on the same
  * element, so the logical resolution the competition test performs describes
@@ -79,7 +118,7 @@ import { isContextActive } from "../conditions/index.ts";
  */
 export type GuardEvaluation = {
   element: Element;
-  property: CompiledProbeProperty;
+  property: GuardSubject;
   index: GuardIndex;
   writingMode: WritingMode;
   direction: Direction;
