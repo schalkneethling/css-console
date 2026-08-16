@@ -389,6 +389,61 @@ test("an escaped combinator character ends a compound rather than a combinator",
   ]);
 });
 
+test("a no-break space before a pseudo-element is an identifier character rather than whitespace", () => {
+  // CSS whitespace is U+0020, U+0009, U+000A, U+000C, and U+000D, and any
+  // other code point, including U+00A0 NO-BREAK SPACE, is an identifier
+  // character. Verified in the browser lane against headless Chromium
+  // 151.0.7922.34: a selector spelling "card" followed by U+00A0 matches only
+  // an element whose class token carries the no-break space and never one
+  // whose class is "card". JavaScript's trim() counts U+00A0 as whitespace,
+  // so trimming with it would silently rewrite the class name and invent a
+  // descendant combinator.
+  const result = split(".card\u00A0::before");
+
+  expect(result.branches).toEqual([
+    {
+      authored: ".card\u00A0::before",
+      selector: ".card\u00A0",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
+  ]);
+});
+
+test("a branch's surrounding trim removes CSS whitespace only", () => {
+  const result = split("  .card\u00A0  , .panel");
+
+  expect(result.branches.map((branch) => branch.authored)).toEqual([".card\u00A0", ".panel"]);
+  expect(selectors(result)).toEqual([".card\u00A0", ".panel"]);
+});
+
+test("a branch that is only a no-break space is not an empty branch", () => {
+  // Verified in the browser lane against headless Chromium 151.0.7922.34:
+  // querySelectorAll() accepts a selector list whose middle branch is one
+  // U+00A0, because a lone no-break space is a valid type selector that
+  // matches nothing, so the list is kept and its other branches still apply.
+  // Treating the branch as empty would discard the whole list as
+  // MALFORMED_SELECTOR_LIST and report the rule as one the browser dropped,
+  // which is false.
+  const result = split(".a, \u00A0, .b");
+
+  expect(result.diagnostics).toEqual([]);
+  expect(selectors(result)).toEqual([".a", "\u00A0", ".b"]);
+});
+
+test("a no-break space does not terminate a hex escape", () => {
+  // The consume-an-escaped-code-point algorithm swallows one trailing
+  // whitespace character after the digits, and CSS whitespace does not
+  // include U+00A0. Verified in the browser lane against headless Chromium
+  // 151.0.7922.34: a hex escape followed by U+00A0 keeps the no-break space
+  // in the identifier, while one followed by U+0020 consumes the space as
+  // the terminator. Consuming the no-break space here would decode the name
+  // below as ::before, claiming a pseudo-element the engine does not see.
+  const result = split(".note::be\\66\u00A0ore");
+
+  expect(result.branches).toEqual([]);
+  expect(codes(result)).toEqual(["DEFERRED_PSEUDO_ELEMENT"]);
+});
+
 test("::part() is deferred and reports DEFERRED_PSEUDO_ELEMENT", () => {
   const result = split(".badge::part(label)");
 
