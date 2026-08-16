@@ -213,6 +213,7 @@ function evaluateCallSite(
       },
     ],
     root,
+    callSite.source,
   );
 
   const name = propertyMatchKey(callSite.property);
