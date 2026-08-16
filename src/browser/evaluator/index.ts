@@ -54,7 +54,12 @@
  * - A pseudo-element whose `content` computes to `none` generates no box, and
  *   its declaration still reports computed values (implementation plan section
  *   5.8). A length that needs a box to resolve, such as a percentage width,
- *   stays at its computed percentage.
+ *   stays at its computed percentage. `::placeholder` is the one exception
+ *   among the eight supported pseudo-elements: when the element has no
+ *   placeholder, the reading silently degrades to the originating element's
+ *   own declaration, so the reported values are the element's rather than
+ *   anything a `::placeholder` rule wrote. The other seven report their own
+ *   cascaded style whether or not a box is generated.
  *
  * The `display: none` fallback is the same behavior seen from another angle,
  * and it needs no code here either. Resolved values fall back to computed

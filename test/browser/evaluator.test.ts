@@ -231,6 +231,41 @@ test("a pseudo-element with generated content reports the values of its box", ()
   );
 });
 
+test("::placeholder reports the originating element's values when no placeholder exists", () => {
+  // The boxless-pseudo-element behavior does not generalize to
+  // ::placeholder. When the element has a placeholder, the reading is the
+  // pseudo-element's own cascaded style, but when it has none, Chromium
+  // 151.0.7922.34 silently degrades to the originating element's own
+  // declaration, so the reported values are the element's and not anything a
+  // ::placeholder rule wrote. This case pins the degraded reading so an
+  // engine that changes it fails the lane; the module doc names the
+  // exception.
+  withFixture(
+    `<input class="host" placeholder="hi" id="with"><input class="host" id="without">`,
+    `.host { color: rgb(1 1 1); font-size: 40px; }
+     .host::placeholder { color: rgb(2 2 2); font-size: 11px; }`,
+    (host) => {
+      const withPlaceholder = readResolvedValues(elementById(host, "with"), "::placeholder", [
+        property("color"),
+        property("font-size"),
+      ]);
+      const withoutPlaceholder = readResolvedValues(elementById(host, "without"), "::placeholder", [
+        property("color"),
+        property("font-size"),
+      ]);
+
+      expect(withPlaceholder.values.map((value) => value.resolved)).toEqual([
+        "rgb(2, 2, 2)",
+        "11px",
+      ]);
+      expect(withoutPlaceholder.values.map((value) => value.resolved)).toEqual([
+        "rgb(1, 1, 1)",
+        "40px",
+      ]);
+    },
+  );
+});
+
 test("a pseudo-element with no content still reports computed values while generating no box", () => {
   withFixture(
     `<p class="undecorated" id="target"></p>`,
