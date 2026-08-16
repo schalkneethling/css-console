@@ -1,3 +1,4 @@
+import { page } from "vite-plus/test/browser/context";
 import { expect, test } from "vite-plus/test";
 
 import { compileSource, guardCandidates } from "../../src/core/compiler/index.ts";
@@ -238,20 +239,18 @@ test("an indexed declaration inside an inactive condition is excluded from the g
   expect(live).toEqual([".active-competitor", ".always-competes"]);
 });
 
-test("the predicate reads live state rather than a cached answer", () => {
-  // Nothing is memoized, so the same context evaluated twice around a
-  // viewport-dependent condition reports the world as it is each time. The
-  // condition here is written against the current window width, and the
-  // assertion is that both reads agree with `matchMedia()` taken at the same
-  // moment rather than with a value captured earlier.
-  const wide = `(min-width: ${window.innerWidth + 1000}px)`;
-  const narrow = `(min-width: ${Math.max(window.innerWidth - 1, 0)}px)`;
+test("the predicate reads live state rather than a cached answer", async () => {
+  // Nothing is memoized, so one context evaluated on either side of a real
+  // viewport change reports the world as it is each time. A predicate that
+  // cached its first answer would repeat it after the resize, which is the
+  // regression this case exists to catch. The other cases in this suite use
+  // viewport-independent conditions by design, so the resized viewport this
+  // test leaves behind cannot change what they observe.
+  const viewportDependent = context({ kind: "media", condition: "(min-width: 600px)" });
 
-  expect(isContextActive(context({ kind: "media", condition: wide }))).toBe(
-    matchMedia(wide).matches,
-  );
-  expect(isContextActive(context({ kind: "media", condition: narrow }))).toBe(
-    matchMedia(narrow).matches,
-  );
-  expect(isContextActive(context({ kind: "media", condition: wide }))).toBe(false);
+  await page.viewport(400, 300);
+  expect(isContextActive(viewportDependent)).toBe(false);
+
+  await page.viewport(800, 300);
+  expect(isContextActive(viewportDependent)).toBe(true);
 });
