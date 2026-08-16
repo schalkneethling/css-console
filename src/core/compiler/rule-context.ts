@@ -86,9 +86,24 @@
  * } } } }` has `.active`'s context reach both `@layer` and `@media`, on
  * either side of the `.card` rule nesting stops at, which is exactly why the
  * two modules cannot share one stopping rule, only one way of walking.
+ *
+ * `compileDeclarationContext()` answers a narrower, related question: the
+ * context of one declaration rather than of the rule that owns it. CSS
+ * nesting lets a conditional at-rule sit between a declaration and its
+ * owning rule, as in `.card { @media (width > 40em) { padding: 1rem; } }`,
+ * and that nested `@media` is not in the rule's own ancestor chain at all;
+ * `compileRuleContext(rule)` walks upward from the rule and never sees it.
+ * A call site resolved from that declaration (CSSC-013) is not honestly
+ * unconditional just because the rule it is nested in happens to be, and a
+ * nested `@container` is not honestly probable just because the rule around
+ * it is outside `@container` altogether. `compileDeclarationContext()`
+ * closes that gap by walking from the declaration down to its owning rule
+ * and then continuing through the rule's own ancestors, so the result is the
+ * full stack a call site actually sits inside, nested segment and rule
+ * context together, outermost first.
  */
 
-import type { AtRule, Rule } from "postcss";
+import type { AtRule, Container, Declaration, Document, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic, DiagnosticCode } from "../diagnostics/index.ts";
@@ -132,13 +147,13 @@ export type RuleContextResolution = {
 };
 
 /**
- * Builds a source location for a rule from its parser positions, matching
- * the fallback every other compiler module uses for a node with no end
- * position.
+ * Builds a source location for a rule or declaration from its parser
+ * positions, matching the fallback every other compiler module uses for a
+ * node with no end position.
  */
-function locationOf(rule: Rule, url: string): SourceLocation {
-  const start = rule.source?.start ?? { line: 1, column: 1 };
-  const end = rule.source?.end ?? start;
+function locationOf(node: Rule | Declaration, url: string): SourceLocation {
+  const start = node.source?.start ?? { line: 1, column: 1 };
+  const end = node.source?.end ?? start;
 
   return {
     url,
@@ -177,6 +192,46 @@ function blocked(
   };
 }
 
+/**
+ * Builds the blocked outcome for a declaration whose nested ancestry, between
+ * it and its owning rule, includes an at-rule this release cannot honestly
+ * compile a context through. The source is the declaration rather than the
+ * rule, and `details` names the declaration's own property rather than a
+ * selector, matching the convention the descriptor-at-rule diagnostic in
+ * ../functions/index.ts already uses for a declaration-level exclusion.
+ */
+function blockedAtDeclaration(
+  code: DiagnosticCode,
+  declaration: Declaration,
+  atRule: AtRule,
+  url: string,
+  message?: string,
+): RuleContextResolution {
+  return {
+    context: null,
+    diagnostics: [
+      createDiagnostic(code, {
+        message,
+        source: locationOf(declaration, url),
+        details: { property: declaration.prop, atRule: atRule.name },
+      }),
+    ],
+  };
+}
+
+/**
+ * What one at-rule ancestor contributes to a context walk: the entry it adds
+ * (possibly none, for an at-rule this project recognises but does not
+ * annotate as a condition, which does not currently arise but keeps the
+ * classification total), or the fact that it blocks compilation entirely.
+ * Shared by `compileRuleContext()` and `compileDeclarationContext()` so one
+ * case list decides what every at-rule means for a probe, rather than two
+ * classifications answering the question differently.
+ */
+type AtRuleClassification =
+  | { blocked: false; entry: RuleContextEntry | null }
+  | { blocked: true; code: DiagnosticCode; message?: string };
+
 const SCOPE_MESSAGE =
   "This rule sits inside @scope. css-console does not evaluate rule contexts inside @scope in this release. This is a distinct fact from DEFERRED_SCOPE_NESTING, which nesting resolution reports separately when a nested rule's own selector cannot be flattened because @scope redefines what the nesting selector means; a rule may report one, the other, both, or neither, depending on where in its ancestry each condition is found. The rule is not probed.";
 
@@ -195,6 +250,57 @@ function unrecognizedMessage(atRule: AtRule): string {
     `This rule sits inside @${atRule.name}, an at-rule outside css-console's supported rule-context ` +
     "set. The rule is not probed."
   );
+}
+
+/**
+ * Classifies one at-rule ancestor encountered during a context walk. See the
+ * module doc comment for what each named at-rule means for a probe and why;
+ * this is the one place that list of cases is written down, shared by
+ * `compileRuleContext()` and `compileDeclarationContext()` so a nested walk
+ * and a rule walk can never disagree about what the same at-rule means.
+ */
+function classifyAtRule(atRule: AtRule): AtRuleClassification {
+  const name = atRule.name.toLowerCase();
+
+  if (name === "media") {
+    return { blocked: false, entry: { kind: "media", condition: atRule.params } };
+  }
+
+  if (name === "supports") {
+    return { blocked: false, entry: { kind: "supports", condition: atRule.params } };
+  }
+
+  if (name === "layer") {
+    const layerName = atRule.params.trim();
+
+    return { blocked: false, entry: { kind: "layer", name: layerName === "" ? null : layerName } };
+  }
+
+  if (name === "scope") {
+    return { blocked: true, code: "OUTSIDE_SUPPORTED_TARGET_SET", message: SCOPE_MESSAGE };
+  }
+
+  if (name === "container") {
+    return { blocked: true, code: "OUTSIDE_SUPPORTED_TARGET_SET", message: CONTAINER_MESSAGE };
+  }
+
+  if (name === "starting-style") {
+    return { blocked: true, code: "OUTSIDE_SUPPORTED_TARGET_SET", message: STARTING_STYLE_MESSAGE };
+  }
+
+  if (name === "keyframes") {
+    return { blocked: true, code: "OUTSIDE_SUPPORTED_TARGET_SET", message: KEYFRAMES_MESSAGE };
+  }
+
+  if (name === "function") {
+    return { blocked: true, code: "INVALID_FUNCTION_BODY_RULE" };
+  }
+
+  return {
+    blocked: true,
+    code: "OUTSIDE_SUPPORTED_TARGET_SET",
+    message: unrecognizedMessage(atRule),
+  };
 }
 
 /**
@@ -218,47 +324,102 @@ export function compileRuleContext(rule: Rule, url: string): RuleContextResoluti
     }
 
     const atRule = ancestor as AtRule;
-    const name = atRule.name.toLowerCase();
+    const classification = classifyAtRule(atRule);
 
-    if (name === "media") {
-      entries.push({ kind: "media", condition: atRule.params });
-      continue;
+    if (classification.blocked) {
+      return blocked(classification.code, rule, atRule, url, classification.message);
     }
 
-    if (name === "supports") {
-      entries.push({ kind: "supports", condition: atRule.params });
-      continue;
+    if (classification.entry !== null) {
+      entries.push(classification.entry);
     }
-
-    if (name === "layer") {
-      const layerName = atRule.params.trim();
-
-      entries.push({ kind: "layer", name: layerName === "" ? null : layerName });
-      continue;
-    }
-
-    if (name === "scope") {
-      return blocked("OUTSIDE_SUPPORTED_TARGET_SET", rule, atRule, url, SCOPE_MESSAGE);
-    }
-
-    if (name === "container") {
-      return blocked("OUTSIDE_SUPPORTED_TARGET_SET", rule, atRule, url, CONTAINER_MESSAGE);
-    }
-
-    if (name === "starting-style") {
-      return blocked("OUTSIDE_SUPPORTED_TARGET_SET", rule, atRule, url, STARTING_STYLE_MESSAGE);
-    }
-
-    if (name === "keyframes") {
-      return blocked("OUTSIDE_SUPPORTED_TARGET_SET", rule, atRule, url, KEYFRAMES_MESSAGE);
-    }
-
-    if (name === "function") {
-      return blocked("INVALID_FUNCTION_BODY_RULE", rule, atRule, url);
-    }
-
-    return blocked("OUTSIDE_SUPPORTED_TARGET_SET", rule, atRule, url, unrecognizedMessage(atRule));
   }
 
   return { context: { entries: entries.reverse() }, diagnostics: [] };
+}
+
+/**
+ * Yields every ancestor of a declaration, from its parent outward. Matches
+ * `ancestorsOf()` from ../nesting/index.ts, which cannot be reused directly
+ * because it is typed over `Rule | AtRule` and a declaration is neither; the
+ * walk itself is the same one line, just starting one node lower.
+ */
+function* ancestorsOfDeclaration(declaration: Declaration): Generator<Container | Document> {
+  let ancestor: Container | Document | undefined = declaration.parent;
+
+  while (ancestor !== undefined) {
+    yield ancestor;
+    ancestor = ancestor.parent;
+  }
+}
+
+/**
+ * Compiles the context of one declaration: the full stack of conditional and
+ * grouping at-rules enclosing it, nested segment and owning rule's own
+ * context together, outermost first. See the module doc comment for why this
+ * is a different question from `compileRuleContext(rule)` alone.
+ *
+ * The walk goes nearest-first from the declaration, exactly like
+ * `compileRuleContext()`'s walk from a rule, so the nearest boundary wins the
+ * same way: a blocking at-rule between the declaration and its owning rule is
+ * found, and reported, before the rule's own ancestry is ever consulted. A
+ * style-rule ancestor contributes no entry, matching how `compileRuleContext`
+ * treats an intervening style rule, and marks where the nested segment ends;
+ * the owning rule's own context is then computed the ordinary way and
+ * appended after the nested segment, which is already outermost first once
+ * reversed, so concatenating the two, rule context then nested segment,
+ * yields one outermost-first stack. A declaration with no owning rule
+ * reachable in its ancestry, which does not arise for a call site since
+ * placement has already confirmed one exists, produces an empty context
+ * rather than failing, so this function stays total.
+ */
+export function compileDeclarationContext(
+  declaration: Declaration,
+  url: string,
+): RuleContextResolution {
+  const nestedEntries: RuleContextEntry[] = [];
+  let owner: Rule | undefined;
+
+  for (const ancestor of ancestorsOfDeclaration(declaration)) {
+    if (ancestor.type === "rule") {
+      owner = ancestor as Rule;
+      break;
+    }
+
+    if (ancestor.type !== "atrule") {
+      break;
+    }
+
+    const atRule = ancestor as AtRule;
+    const classification = classifyAtRule(atRule);
+
+    if (classification.blocked) {
+      return blockedAtDeclaration(
+        classification.code,
+        declaration,
+        atRule,
+        url,
+        classification.message,
+      );
+    }
+
+    if (classification.entry !== null) {
+      nestedEntries.push(classification.entry);
+    }
+  }
+
+  if (owner === undefined) {
+    return { context: { entries: nestedEntries.reverse() }, diagnostics: [] };
+  }
+
+  const ruleContext = compileRuleContext(owner, url);
+
+  if (ruleContext.context === null) {
+    return ruleContext;
+  }
+
+  return {
+    context: { entries: [...ruleContext.context.entries, ...nestedEntries.reverse()] },
+    diagnostics: [],
+  };
 }

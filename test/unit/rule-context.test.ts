@@ -1,8 +1,8 @@
 import postcss from "postcss";
-import type { Rule } from "postcss";
+import type { Declaration, Rule } from "postcss";
 import { expect, test } from "vite-plus/test";
 
-import { compileRuleContext } from "../../src/core/compiler/index.ts";
+import { compileDeclarationContext, compileRuleContext } from "../../src/core/compiler/index.ts";
 import type { RuleContextResolution } from "../../src/core/compiler/index.ts";
 import { resolveNestedSelector } from "../../src/core/nesting/index.ts";
 
@@ -52,6 +52,28 @@ function ruleAt(css: string, index: number): Rule {
 /** Compiles the context of the rule at the given index in one source. */
 function contextOf(css: string, index = 0): RuleContextResolution {
   return compileRuleContext(ruleAt(css, index), URL);
+}
+
+/** Finds the declaration at the given index, in document order, failing loudly if absent. */
+function declarationAt(css: string, index: number): Declaration {
+  const declarations: Declaration[] = [];
+
+  postcss.parse(css, { from: URL }).walkDecls((declaration) => {
+    declarations.push(declaration);
+  });
+
+  const declaration = declarations[index];
+
+  if (declaration === undefined) {
+    throw new Error(`the source has no declaration at index ${index}: ${css}`);
+  }
+
+  return declaration;
+}
+
+/** Compiles the context of the declaration at the given index in one source. */
+function declarationContextOf(css: string, index = 0): RuleContextResolution {
+  return compileDeclarationContext(declarationAt(css, index), URL);
 }
 
 /** Returns the diagnostic codes a resolution carries, in order. */
@@ -259,4 +281,56 @@ test("@container, @starting-style, @keyframes, and @function produce no diagnost
     expect(resolveNestedSelector(rule, URL).diagnostics, css).toEqual([]);
     expect(codes(compileRuleContext(rule, URL)).length, css).toBe(1);
   }
+});
+
+/**
+ * `compileDeclarationContext()` tests.
+ *
+ * These pin the gap PR 37's follow-up review found: a conditional at-rule
+ * nested inside the owning rule, between it and the declaration, is not in
+ * the rule's own ancestor chain, so `compileRuleContext(rule)` alone cannot
+ * see it, and a call site resolved from that declaration would otherwise
+ * report a narrower context than the one it actually sits inside.
+ */
+
+test("a declaration with no nested at-rule compiles the same context as its rule", () => {
+  const css = "@layer base { .card { padding: 1rem; } }";
+
+  expect(declarationContextOf(css)).toEqual(contextOf(css));
+});
+
+test("a declaration nested in a conditional inside its rule carries that condition", () => {
+  const result = declarationContextOf(".card { @media (width > 40em) { padding: 1rem; } }");
+
+  expect(result.context).toEqual({
+    entries: [{ kind: "media", condition: "(width > 40em)" }],
+  });
+  expect(result.diagnostics).toEqual([]);
+});
+
+test("a declaration's nested segment stacks after its rule's own context, outermost-first", () => {
+  const result = declarationContextOf(
+    "@media (width > 40em) { .card { @supports (gap: 1rem) { padding: 1rem; } } }",
+  );
+
+  expect(result.context).toEqual({
+    entries: [
+      { kind: "media", condition: "(width > 40em)" },
+      { kind: "supports", condition: "(gap: 1rem)" },
+    ],
+  });
+});
+
+test("a declaration nested under @container inside its rule is blocked", () => {
+  const result = declarationContextOf(".card { @container (width > 10em) { padding: 1rem; } }");
+
+  expect(result.context).toBeNull();
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
+});
+
+test("a declaration's own rule-level blocking at-rule still blocks it", () => {
+  const result = declarationContextOf("@scope (.card) { .card { padding: 1rem; } }");
+
+  expect(result.context).toBeNull();
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
 });

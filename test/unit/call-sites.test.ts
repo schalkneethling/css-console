@@ -506,6 +506,102 @@ test("a call in a declaration outside a style rule is excluded", () => {
   expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET", "NO_CALL_SITES"]);
 });
 
+test("a call site in a bare rule carries a context with no entries", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  padding: --space(4);
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([]);
+});
+
+test("a call site inside @media carries that condition as its context", () => {
+  const result = resolve(`${DEFINITION}
+@media (width > 40em) {
+  .card {
+    padding: --space(4);
+  }
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+  ]);
+});
+
+test("a call site inside nested @supports inside @media carries both entries outermost-first", () => {
+  const result = resolve(`${DEFINITION}
+@media (width > 40em) {
+  @supports (gap: 1rem) {
+    .card {
+      padding: --space(4);
+    }
+  }
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+    { kind: "supports", condition: "(gap: 1rem)" },
+  ]);
+});
+
+test("a call site in a conditional nested inside its rule carries that condition", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  @media (width > 40em) {
+    padding: --space(4);
+  }
+}`);
+
+  expect(result.callSites).toHaveLength(1);
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+  ]);
+});
+
+test("a call site's nested segment stacks after its rule's own context, outermost-first", () => {
+  const result = resolve(`${DEFINITION}
+@media (width > 40em) {
+  .card {
+    @supports (gap: 1rem) {
+      padding: --space(4);
+    }
+  }
+}`);
+
+  expect(result.callSites[0]?.context.entries).toEqual([
+    { kind: "media", condition: "(width > 40em)" },
+    { kind: "supports", condition: "(gap: 1rem)" },
+  ]);
+});
+
+test("a call nested under @container inside its rule is excluded, with no call site", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  @container (width > 10em) {
+    padding: --space(4);
+  }
+}`);
+
+  expect(result.callSites).toEqual([]);
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET", "NO_CALL_SITES"]);
+});
+
+test("a plain call site beside a blocked nested one in the same rule still compiles", () => {
+  const result = resolve(`${DEFINITION}
+.card {
+  @container (width > 10em) {
+    padding: --space(4);
+  }
+
+  margin: --space(2);
+}`);
+
+  expect(result.callSites).toHaveLength(1);
+  expect(result.callSites[0]?.property).toBe("margin");
+  expect(result.callSites[0]?.context.entries).toEqual([]);
+  expect(codes(result)).toEqual(["OUTSIDE_SUPPORTED_TARGET_SET"]);
+});
+
 test("call sites are reported in source order", () => {
   const result = resolve(`${DEFINITION}
 .panel {
