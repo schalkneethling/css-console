@@ -347,7 +347,11 @@ test("a descendant space before a pseudo-element becomes an explicit universal c
   const result = split(".card ::before");
 
   expect(result.branches).toEqual([
-    { authored: ".card ::before", selector: ".card *", pseudo: "::before" } satisfies SelectorBranch,
+    {
+      authored: ".card ::before",
+      selector: ".card *",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
   ]);
 });
 
@@ -377,7 +381,11 @@ test("an escaped combinator character ends a compound rather than a combinator",
   const result = split(".card\\~::before");
 
   expect(result.branches).toEqual([
-    { authored: ".card\\~::before", selector: ".card\\~", pseudo: "::before" } satisfies SelectorBranch,
+    {
+      authored: ".card\\~::before",
+      selector: ".card\\~",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
   ]);
 });
 

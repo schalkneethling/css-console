@@ -348,6 +348,65 @@ function readPseudoElement(tail: string): string | null {
  * failure this tool cannot afford. One diagnostic is produced however many
  * branches are empty, because the list is discarded once.
  */
+/**
+ * True when the character at `index` is escaped, which is the case exactly
+ * when an odd run of backslashes precedes it.
+ */
+function isEscaped(text: string, index: number): boolean {
+  let backslashes = 0;
+
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i -= 1) {
+    backslashes += 1;
+  }
+
+  return backslashes % 2 === 1;
+}
+
+/**
+ * Resolves the text before a pseudo-element into the originating selector a
+ * matcher can pass to `querySelectorAll()`.
+ *
+ * The compound selector carrying the pseudo-element may omit its type
+ * selector, and the omitted selector is the universal selector: `::before`
+ * means `*::before`, `.card ::before` means `.card *::before`, and
+ * `.card > ::before` means `.card > *::before`. Dropping the surrounding
+ * whitespace without restoring the universal compound would either swallow a
+ * descendant combinator, handing a matcher `.card` for a rule that styles
+ * descendants of `.card`, or leave an explicit combinator dangling, which no
+ * selector engine parses. Both misattribute the rule, so the universal
+ * compound is written out whenever the text ends in a combinator.
+ *
+ * An escaped final character is never a combinator: `.card\~` names the
+ * class `card~`, so the compound is already complete and nothing is
+ * appended. The same holds for an escaped final space, which is part of an
+ * identifier rather than a descendant combinator.
+ */
+function resolveOriginatingSelector(prefix: string): string {
+  const text = prefix.trimStart();
+
+  if (text.trim() === "") {
+    return "*";
+  }
+
+  let end = text.length;
+
+  while (end > 0 && text[end - 1]?.trim() === "" && !isEscaped(text, end - 1)) {
+    end -= 1;
+  }
+
+  const descendant = end < text.length;
+  const trimmed = text.slice(0, end);
+  const last = trimmed[trimmed.length - 1];
+  const combinator =
+    (last === ">" || last === "+" || last === "~") && !isEscaped(trimmed, trimmed.length - 1);
+
+  if (combinator || descendant) {
+    return `${trimmed} *`;
+  }
+
+  return trimmed;
+}
+
 export function splitSelectorBranches(selector: string, source: SourceLocation): SelectorSplit {
   const authoredBranches = splitOnCommas(selector);
   const empty = authoredBranches.findIndex((branch) => branch.trim() === "");
@@ -389,9 +448,11 @@ export function splitSelectorBranches(selector: string, source: SourceLocation):
       continue;
     }
 
-    const originating = authored.slice(0, start).trim();
-
-    branches.push({ authored, selector: originating === "" ? "*" : originating, pseudo });
+    branches.push({
+      authored,
+      selector: resolveOriginatingSelector(authored.slice(0, start)),
+      pseudo,
+    });
   }
 
   return { branches, diagnostics };
