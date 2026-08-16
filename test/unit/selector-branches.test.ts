@@ -337,6 +337,121 @@ test("a bare pseudo-element gets the universal selector as its originating selec
   ]);
 });
 
+test("a descendant space before a pseudo-element becomes an explicit universal compound", () => {
+  // .card ::before is .card *::before: the compound carrying the
+  // pseudo-element omitted its type selector, so the omitted selector is the
+  // universal selector, and the space before it is a descendant combinator.
+  // Trimming the space away would hand a matcher .card, which selects the
+  // ancestor rather than the elements whose boxes the rule styles, and a
+  // wrongly attributed value is the one failure this tool cannot afford.
+  const result = split(".card ::before");
+
+  expect(result.branches).toEqual([
+    {
+      authored: ".card ::before",
+      selector: ".card *",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
+  ]);
+});
+
+test("a combinator before a pseudo-element keeps the combinator and gains a universal compound", () => {
+  // Without the explicit universal selector the originating text ends in the
+  // combinator, which no selector engine parses, and the resulting diagnostic
+  // would blame the author for syntax the compiler produced.
+  const result = split(".card > ::before, .card + ::after, .card ~ ::before");
+
+  expect(selectors(result)).toEqual([".card > *", ".card + *", ".card ~ *"]);
+  expect(result.diagnostics).toEqual([]);
+});
+
+test("a legacy spelling after a descendant space also gains the universal compound", () => {
+  const result = split(".card :before");
+
+  expect(result.branches).toEqual([
+    { authored: ".card :before", selector: ".card *", pseudo: "::before" } satisfies SelectorBranch,
+  ]);
+});
+
+test("an escaped combinator character ends a compound rather than a combinator", () => {
+  // .card\~ names the class "card~", so the branch is a compound selector
+  // followed directly by a pseudo-element and no universal compound may be
+  // appended. The escape is one source character here, but the same rule
+  // holds for any odd run of backslashes.
+  const result = split(".card\\~::before");
+
+  expect(result.branches).toEqual([
+    {
+      authored: ".card\\~::before",
+      selector: ".card\\~",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
+  ]);
+});
+
+test("a no-break space before a pseudo-element is an identifier character rather than whitespace", () => {
+  // CSS whitespace is U+0020, U+0009, U+000A, U+000C, and U+000D, and any
+  // other code point, including U+00A0 NO-BREAK SPACE, is an identifier
+  // character. Verified in the browser lane against headless Chromium
+  // 151.0.7922.34: a selector spelling "card" followed by U+00A0 matches only
+  // an element whose class token carries the no-break space and never one
+  // whose class is "card". JavaScript's trim() counts U+00A0 as whitespace,
+  // so trimming with it would silently rewrite the class name and invent a
+  // descendant combinator.
+  const result = split(".card\u00A0::before");
+
+  expect(result.branches).toEqual([
+    {
+      authored: ".card\u00A0::before",
+      selector: ".card\u00A0",
+      pseudo: "::before",
+    } satisfies SelectorBranch,
+  ]);
+});
+
+test("a branch's surrounding trim removes CSS whitespace only", () => {
+  const result = split("  .card\u00A0  , .panel");
+
+  expect(result.branches.map((branch) => branch.authored)).toEqual([".card\u00A0", ".panel"]);
+  expect(selectors(result)).toEqual([".card\u00A0", ".panel"]);
+});
+
+test("a branch that is only a no-break space is not an empty branch", () => {
+  // Verified in the browser lane against headless Chromium 151.0.7922.34:
+  // querySelectorAll() accepts a selector list whose middle branch is one
+  // U+00A0, because a lone no-break space is a valid type selector that
+  // matches nothing, so the list is kept and its other branches still apply.
+  // Treating the branch as empty would discard the whole list as
+  // MALFORMED_SELECTOR_LIST and report the rule as one the browser dropped,
+  // which is false.
+  const result = split(".a, \u00A0, .b");
+
+  expect(result.diagnostics).toEqual([]);
+  expect(selectors(result)).toEqual([".a", "\u00A0", ".b"]);
+});
+
+test("a no-break space does not terminate a hex escape", () => {
+  // The consume-an-escaped-code-point algorithm swallows one trailing
+  // whitespace character after the digits, and CSS whitespace does not
+  // include U+00A0. Verified in the browser lane against headless Chromium
+  // 151.0.7922.34: a hex escape followed by U+00A0 keeps the no-break space
+  // in the identifier, while one followed by U+0020 consumes the space as
+  // the terminator. Consuming the no-break space here would decode the name
+  // below as ::before, claiming a pseudo-element the engine does not see.
+  const result = split(".note::be\\66\u00A0ore");
+
+  expect(result.branches).toEqual([]);
+  expect(codes(result)).toEqual(["DEFERRED_PSEUDO_ELEMENT"]);
+
+  // The control case: the same identifier with U+0020 in place of U+00A0 is
+  // a terminated escape, so the name decodes to ::before. The recognized
+  // spelling is also pinned on its own earlier in this file.
+  const control = split(".note::be\\66 ore");
+
+  expect(control.branches[0]?.pseudo).toBe("::before");
+  expect(control.diagnostics).toEqual([]);
+});
+
 test("::part() is deferred and reports DEFERRED_PSEUDO_ELEMENT", () => {
   const result = split(".badge::part(label)");
 

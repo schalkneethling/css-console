@@ -37,8 +37,12 @@ export type DiagnosticSeverity = "info" | "warning" | "error";
  * browser gap: the specification exists but the current user agent does not
  * yet implement it. `deferred` names a feature the project postponed by
  * choice. `not-a-target` names a construct css-console rejects by design,
- * such as a grouping at-rule. `annotation` names a grammar or placement
- * rejection in the annotation comment itself. `source` names a failure while
+ * such as a grouping at-rule. `annotation` names a defect in what the author
+ * wrote at an annotated rule: a grammar or placement rejection in the
+ * annotation comment itself, or a defect in the annotated rule's selector,
+ * whether the compiler discovers it (`MALFORMED_SELECTOR_LIST`,
+ * `INVALID_NESTING_SELECTOR`) or the live selector engine does
+ * (`UNPARSEABLE_SELECTOR_BRANCH`). `source` names a failure while
  * discovering or loading a source. `informational` names a condition that is
  * neither an error nor a warning, reported because it answers a debugging
  * question.
@@ -215,6 +219,12 @@ export const DIAGNOSTIC_REGISTRY = {
     "error",
     "annotation",
     "A style rule is authored inside an @function body. A function body declares custom properties, and may nest @media or @supports conditionals around further declarations, but a style rule has no matched element to apply to; the browser discards it entirely rather than keeping it. Move the rule outside the @function body.",
+  ),
+  UNPARSEABLE_SELECTOR_BRANCH: defineDiagnostic(
+    "UNPARSEABLE_SELECTOR_BRANCH",
+    "warning",
+    "annotation",
+    "A selector branch the compiler accepted was rejected by the browser's selector engine, which throws a SyntaxError for a selector it cannot parse. The branch matches no elements and the remaining branches of the selector still match.",
   ),
 } as const;
 
