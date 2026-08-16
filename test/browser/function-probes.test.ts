@@ -436,6 +436,11 @@ test("a call site the engine cannot match does not stop the call sites beside it
       reason: "SyntaxError",
     });
 
+    // The diagnostic names the call site it came from, so two call sites
+    // carrying the same rejected selector text stay apart when diagnostics
+    // are deduplicated by location.
+    expect(evaluation.diagnostics[0]?.source).toEqual(probe.callSites[0]?.source);
+
     expect(evaluation.callSites).toHaveLength(2);
     expect(evaluation.callSites[0]?.evaluations).toEqual([]);
     expect(evaluation.callSites[1]?.evaluations).toEqual([
