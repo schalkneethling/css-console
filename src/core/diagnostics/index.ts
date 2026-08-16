@@ -37,8 +37,12 @@ export type DiagnosticSeverity = "info" | "warning" | "error";
  * browser gap: the specification exists but the current user agent does not
  * yet implement it. `deferred` names a feature the project postponed by
  * choice. `not-a-target` names a construct css-console rejects by design,
- * such as a grouping at-rule. `annotation` names a grammar or placement
- * rejection in the annotation comment itself. `source` names a failure while
+ * such as a grouping at-rule. `annotation` names a defect in what the author
+ * wrote at an annotated rule: a grammar or placement rejection in the
+ * annotation comment itself, or a defect in the annotated rule's selector,
+ * whether the compiler discovers it (`MALFORMED_SELECTOR_LIST`,
+ * `INVALID_NESTING_SELECTOR`) or the live selector engine does
+ * (`UNPARSEABLE_SELECTOR_BRANCH`). `source` names a failure while
  * discovering or loading a source. `informational` names a condition that is
  * neither an error nor a warning, reported because it answers a debugging
  * question.
