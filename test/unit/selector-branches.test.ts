@@ -442,6 +442,14 @@ test("a no-break space does not terminate a hex escape", () => {
 
   expect(result.branches).toEqual([]);
   expect(codes(result)).toEqual(["DEFERRED_PSEUDO_ELEMENT"]);
+
+  // The control case: the same identifier with U+0020 in place of U+00A0 is
+  // a terminated escape, so the name decodes to ::before. The recognized
+  // spelling is also pinned on its own earlier in this file.
+  const control = split(".note::be\\66 ore");
+
+  expect(control.branches[0]?.pseudo).toBe("::before");
+  expect(control.diagnostics).toEqual([]);
 });
 
 test("::part() is deferred and reports DEFERRED_PSEUDO_ELEMENT", () => {
