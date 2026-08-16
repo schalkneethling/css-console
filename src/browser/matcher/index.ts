@@ -44,6 +44,7 @@
 import { createDiagnostic } from "../../core/diagnostics/index.ts";
 import type { Diagnostic } from "../../core/diagnostics/index.ts";
 import type { CompiledProbeBranch } from "../../core/compiler/index.ts";
+import type { SourceLocation } from "../../core/records/index.ts";
 
 /**
  * One matched element paired with the branch that reached it. The branch
@@ -131,10 +132,14 @@ function compareDocumentOrder(first: Element, second: Element): number {
  * does not contain.
  *
  * A branch the engine cannot parse produces `UNPARSEABLE_SELECTOR_BRANCH` and
- * matches nothing, while every other branch still matches. The diagnostic
- * carries no source location, because a compiled branch records the selector
- * text rather than a position in the stylesheet; the branch as authored is what
- * identifies it, and the details field carries that text.
+ * matches nothing, while every other branch still matches. A compiled branch
+ * records selector text rather than a position, but the probe that carries the
+ * branches does have a rule-level `source`, so a caller that holds one passes
+ * it through `source` and the diagnostic carries it — the same rule-level
+ * attribution `MALFORMED_SELECTOR_LIST` uses for a selector-list-level
+ * problem. Without it, deduplication by location would collapse two rules
+ * carrying the same bad branch text into one report. The details field always
+ * carries the branch text itself.
  *
  * One element reached by two branches that carry the same pseudo-element is
  * reported once, attributed to the earlier branch in the probe's branch order.
@@ -148,6 +153,7 @@ function compareDocumentOrder(first: Element, second: Element): number {
 export function matchBranches(
   branches: readonly CompiledProbeBranch[],
   root: ParentNode = document,
+  source?: SourceLocation,
 ): BranchMatchResult {
   const byElement = new Map<Element, Map<string, CandidateMatch>>();
   const diagnostics: Diagnostic[] = [];
@@ -160,6 +166,7 @@ export function matchBranches(
     } catch (error) {
       diagnostics.push(
         createDiagnostic("UNPARSEABLE_SELECTOR_BRANCH", {
+          source,
           details: {
             branch: branch.authored,
             selector: branch.selector,
