@@ -227,7 +227,7 @@ function evaluateValueProbe(
     return;
   }
 
-  const matched = matchBranches(probe.branches, options.root);
+  const matched = matchBranches(probe.branches, options.root, probe.source);
 
   for (const diagnostic of matched.diagnostics) {
     events.push({ kind: "diagnostic", diagnostic });
