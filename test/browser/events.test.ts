@@ -130,6 +130,29 @@ test("compilation diagnostics precede every probe event", () => {
   });
 });
 
+test("a branch the engine rejects is published with the probe's rule-level source", () => {
+  // The compiler accepts the branch and the live selector engine refuses it,
+  // so the diagnostic is born in the browser. It still names the rule it came
+  // from, so two rules carrying the same rejected branch text stay apart when
+  // diagnostics are deduplicated by location.
+  const css = `/* css-console: log color */
+.solo, .broken:not-a-real-pseudo-class { color: rgb(1, 2, 3); }`;
+
+  withFixture(`<p class="solo"></p>`, css, (host) => {
+    const compiled = compileSource(css, { url: FIXTURE_URL });
+    const events = evaluateSource(compiled, { root: host });
+    const diagnostic = events.find((event) => event.kind === "diagnostic");
+    const probe = compiled.probes[0];
+
+    expect(diagnostic?.kind === "diagnostic" ? diagnostic.diagnostic.code : undefined).toBe(
+      "UNPARSEABLE_SELECTOR_BRANCH",
+    );
+    expect(diagnostic?.kind === "diagnostic" ? diagnostic.diagnostic.source : undefined).toEqual(
+      probe?.kind === "value" ? probe.source : undefined,
+    );
+  });
+});
+
 test("a record's target is the matched element itself", () => {
   const css = `/* css-console: log color */
 .solo { color: rgb(1, 2, 3); }`;
