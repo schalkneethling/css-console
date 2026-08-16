@@ -337,6 +337,50 @@ test("a bare pseudo-element gets the universal selector as its originating selec
   ]);
 });
 
+test("a descendant space before a pseudo-element becomes an explicit universal compound", () => {
+  // .card ::before is .card *::before: the compound carrying the
+  // pseudo-element omitted its type selector, so the omitted selector is the
+  // universal selector, and the space before it is a descendant combinator.
+  // Trimming the space away would hand a matcher .card, which selects the
+  // ancestor rather than the elements whose boxes the rule styles, and a
+  // wrongly attributed value is the one failure this tool cannot afford.
+  const result = split(".card ::before");
+
+  expect(result.branches).toEqual([
+    { authored: ".card ::before", selector: ".card *", pseudo: "::before" } satisfies SelectorBranch,
+  ]);
+});
+
+test("a combinator before a pseudo-element keeps the combinator and gains a universal compound", () => {
+  // Without the explicit universal selector the originating text ends in the
+  // combinator, which no selector engine parses, and the resulting diagnostic
+  // would blame the author for syntax the compiler produced.
+  const result = split(".card > ::before, .card + ::after, .card ~ ::before");
+
+  expect(selectors(result)).toEqual([".card > *", ".card + *", ".card ~ *"]);
+  expect(result.diagnostics).toEqual([]);
+});
+
+test("a legacy spelling after a descendant space also gains the universal compound", () => {
+  const result = split(".card :before");
+
+  expect(result.branches).toEqual([
+    { authored: ".card :before", selector: ".card *", pseudo: "::before" } satisfies SelectorBranch,
+  ]);
+});
+
+test("an escaped combinator character ends a compound rather than a combinator", () => {
+  // .card\~ names the class "card~", so the branch is a compound selector
+  // followed directly by a pseudo-element and no universal compound may be
+  // appended. The escape is one source character here, but the same rule
+  // holds for any odd run of backslashes.
+  const result = split(".card\\~::before");
+
+  expect(result.branches).toEqual([
+    { authored: ".card\\~::before", selector: ".card\\~", pseudo: "::before" } satisfies SelectorBranch,
+  ]);
+});
+
 test("::part() is deferred and reports DEFERRED_PSEUDO_ELEMENT", () => {
   const result = split(".badge::part(label)");
 

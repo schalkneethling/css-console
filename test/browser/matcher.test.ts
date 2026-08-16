@@ -189,6 +189,32 @@ test("a branch the engine cannot parse produces a diagnostic and leaves the othe
   });
 });
 
+test("a caller that provides a source location sees it on the branch diagnostic", () => {
+  // A compiled branch records selector text rather than a position, but the
+  // probe that carries the branch does have a rule-level source, exactly as
+  // MALFORMED_SELECTOR_LIST attaches one for a selector-list-level problem.
+  // Threading it through keeps two rules carrying the same bad branch text
+  // apart when diagnostics are deduplicated by location.
+  const compiled = compileSource(
+    `/* css-console: log color */
+.card:not-a-real-pseudo-class {
+  color: rgb(1 2 3);
+}`,
+    { url: FIXTURE_URL },
+  );
+  const probe = compiled.probes[0];
+
+  if (probe === undefined || probe.kind !== "value") {
+    throw new Error("expected a compiled value probe");
+  }
+
+  const result = matchBranches(probe.branches, document, probe.source);
+
+  expect(result.diagnostics).toHaveLength(1);
+  expect(result.diagnostics[0]?.code).toBe("UNPARSEABLE_SELECTOR_BRANCH");
+  expect(result.diagnostics[0]?.source).toEqual(probe.source);
+});
+
 test("querySelectorAll throws a SyntaxError DOMException for a selector the engine cannot parse", () => {
   // The behavior the invalid-branch case rests on, pinned against the engine
   // rather than recalled. Read in the browser lane against headless Chromium
@@ -248,6 +274,53 @@ test("a pseudo-element branch matches its originating elements and carries the p
     expect(result.matches[0]?.element.id).toBe("origin");
     expect(result.matches[0]?.branch.pseudo).toBe("::before");
   });
+});
+
+test("a pseudo-element after a descendant space matches the descendants rather than the ancestor", () => {
+  // .card ::before styles the ::before box of every descendant of .card, so
+  // the matcher must report the descendants. Reporting the .card element
+  // itself would attribute a computed value to an element the rule never
+  // styles.
+  const branches = branchesOf(`/* css-console: log color */
+.card ::before {
+  color: rgb(1 2 3);
+}`);
+
+  expect(branches.map((branch) => branch.selector)).toEqual([".card *"]);
+
+  withFixture(
+    `<article class="card" id="ancestor"><span id="child"><b id="grandchild"></b></span></article>`,
+    () => {
+      const result = matchBranches(branches);
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.matches.map((match) => match.element.id)).toEqual(["child", "grandchild"]);
+    },
+  );
+});
+
+test("a pseudo-element after a child combinator matches the children without a diagnostic", () => {
+  // The compiler used to hand the engine the originating text ".card >",
+  // which no engine parses, so the author was blamed with
+  // UNPARSEABLE_SELECTOR_BRANCH for syntax the compiler produced. The
+  // explicit universal compound keeps the branch parseable and the match set
+  // correct.
+  const branches = branchesOf(`/* css-console: log color */
+.card > ::before {
+  color: rgb(1 2 3);
+}`);
+
+  expect(branches.map((branch) => branch.selector)).toEqual([".card > *"]);
+
+  withFixture(
+    `<article class="card"><span id="child"><b id="grandchild"></b></span></article>`,
+    () => {
+      const result = matchBranches(branches);
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.matches.map((match) => match.element.id)).toEqual(["child"]);
+    },
+  );
 });
 
 test("one element reached under two pseudo-elements is two matches, and under one pseudo-element twice is one", () => {
