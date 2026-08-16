@@ -89,6 +89,41 @@ const IDENTIFIER = /[A-Za-z0-9_-]/;
 /** A hexadecimal digit, which is what may follow a backslash in an escape. */
 const HEX_DIGIT = /[0-9A-Fa-f]/;
 
+/**
+ * The characters CSS counts as whitespace: U+0020 SPACE, U+0009 TAB, and the
+ * newline forms U+000A, U+000C, and U+000D. This module reads raw selector
+ * text, before the tokenizer preprocessing that folds U+000C and U+000D into
+ * U+000A, so all five appear here. Any other code point is not whitespace,
+ * and that is why JavaScript's trim() and \s are never used in this module:
+ * both count U+00A0 NO-BREAK SPACE, which in CSS is an identifier character.
+ * Verified in the browser lane against headless Chromium 151.0.7922.34,
+ * where a class selector ending in U+00A0 matches only an element whose
+ * class token carries the no-break space, and a lone U+00A0 is a valid type
+ * selector rather than an empty branch.
+ */
+const CSS_WHITESPACE = new Set([" ", "\t", "\n", "\f", "\r"]);
+
+/** True when `character` exists and is CSS whitespace. */
+function isCssWhitespace(character: string | undefined): boolean {
+  return character !== undefined && CSS_WHITESPACE.has(character);
+}
+
+/** Removes leading and trailing CSS whitespace, and nothing else. */
+function trimCssWhitespace(text: string): string {
+  let start = 0;
+  let end = text.length;
+
+  while (start < end && isCssWhitespace(text[start])) {
+    start += 1;
+  }
+
+  while (end > start && isCssWhitespace(text[end - 1])) {
+    end -= 1;
+  }
+
+  return text.slice(start, end);
+}
+
 /** The largest code point a CSS escape may denote. */
 const MAX_CODE_POINT = 0x10ffff;
 
@@ -109,7 +144,7 @@ type ReadEscape = { character: string; end: number };
  * consume-an-escaped-code-point algorithm in CSS Syntax.
  *
  * A backslash followed by hexadecimal digits denotes a code point, taking at
- * most six digits and swallowing one trailing whitespace character that
+ * most six digits and swallowing one trailing CSS whitespace character that
  * exists only to terminate the digits. A backslash followed by anything else
  * denotes that character literally. Out-of-range and surrogate code points
  * become the replacement character, as the algorithm requires.
@@ -137,7 +172,9 @@ function readEscape(text: string, start: number): ReadEscape | null {
     return { character: text[index] ?? "", end: index + 1 };
   }
 
-  if (/\s/.test(text[index] ?? "")) {
+  // One CSS whitespace character terminates the digits. U+00A0 is not CSS
+  // whitespace, so it stays in the identifier; see CSS_WHITESPACE.
+  if (isCssWhitespace(text[index])) {
     index += 1;
   }
 
@@ -312,7 +349,7 @@ function readPseudoElement(tail: string): string | null {
 
   // The consumed length, not the decoded length: an escape spends more
   // source characters than the name it denotes.
-  if (tail.slice(name.end).trim() !== "") {
+  if (trimCssWhitespace(tail.slice(name.end)) !== "") {
     return null;
   }
 
@@ -382,15 +419,21 @@ function isEscaped(text: string, index: number): boolean {
  * identifier rather than a descendant combinator.
  */
 function resolveOriginatingSelector(prefix: string): string {
-  const text = prefix.trimStart();
+  let first = 0;
 
-  if (text.trim() === "") {
+  while (first < prefix.length && isCssWhitespace(prefix[first])) {
+    first += 1;
+  }
+
+  const text = prefix.slice(first);
+
+  if (text === "") {
     return "*";
   }
 
   let end = text.length;
 
-  while (end > 0 && text[end - 1]?.trim() === "" && !isEscaped(text, end - 1)) {
+  while (end > 0 && isCssWhitespace(text[end - 1]) && !isEscaped(text, end - 1)) {
     end -= 1;
   }
 
@@ -409,7 +452,7 @@ function resolveOriginatingSelector(prefix: string): string {
 
 export function splitSelectorBranches(selector: string, source: SourceLocation): SelectorSplit {
   const authoredBranches = splitOnCommas(selector);
-  const empty = authoredBranches.findIndex((branch) => branch.trim() === "");
+  const empty = authoredBranches.findIndex((branch) => trimCssWhitespace(branch) === "");
 
   if (empty !== -1) {
     return {
@@ -427,7 +470,7 @@ export function splitSelectorBranches(selector: string, source: SourceLocation):
   const diagnostics: Diagnostic[] = [];
 
   for (const rawBranch of authoredBranches) {
-    const authored = rawBranch.trim();
+    const authored = trimCssWhitespace(rawBranch);
     const start = findPseudoElement(authored);
 
     if (start === -1) {
