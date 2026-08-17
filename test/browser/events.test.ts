@@ -257,6 +257,62 @@ test("label appears on records and starts only when the annotation carries one",
   });
 });
 
+test("maxElements bounds a function probe's records across its call sites", () => {
+  // The limit is a probe-level budget rather than a per-call-site allowance:
+  // a function called from many declarations would otherwise emit up to
+  // call sites times maxElements records, unbounded work under an option
+  // whose name promises a probe-wide ceiling. Each call site still reports
+  // its own totals, so the truncation stays visible per call site and the
+  // summary sums them.
+  const css = `/* css-console: log */
+@function --pad(--n) { result: calc(var(--n) * 1px); }
+
+.first { padding-top: --pad(1); }
+
+.second { margin-top: --pad(2); }`;
+
+  withFixture(
+    `<p class="first"></p><p class="first"></p><p class="first"></p>
+     <p class="second"></p><p class="second"></p><p class="second"></p>`,
+    css,
+    (host) => {
+      const events = eventsOf(host, css, { maxElements: 4 });
+      const emitted = records(events);
+      const bySite = emitted.map((record) =>
+        record.kind === "function" ? record.callSite.property : record.kind,
+      );
+
+      expect(bySite).toEqual(["padding-top", "padding-top", "padding-top", "margin-top"]);
+
+      const [summary] = summaries(events);
+
+      expect(summary?.records).toBe(4);
+      expect(summary?.matches).toEqual({ total: 6, evaluated: 4, omitted: 2 });
+    },
+  );
+});
+
+test("each inactive probe's summary carries its own match counts", () => {
+  // The published summary shape is mutable, so two summaries sharing one
+  // counts object would let a consumer's write to one silently change the
+  // other, in this scan and every later one.
+  const css = `@media (min-width: 100000px) {
+  /* css-console: log color */
+  .first-inactive { color: rgb(1, 1, 1); }
+
+  /* css-console: log color */
+  .second-inactive { color: rgb(2, 2, 2); }
+}`;
+
+  withFixture(`<p class="first-inactive"></p><p class="second-inactive"></p>`, css, (host) => {
+    const [first, second] = summaries(eventsOf(host, css));
+
+    expect(first?.matches).toEqual({ total: 0, evaluated: 0, omitted: 0 });
+    expect(second?.matches).toEqual({ total: 0, evaluated: 0, omitted: 0 });
+    expect(first?.matches).not.toBe(second?.matches);
+  });
+});
+
 test("one annotation with a pseudo-element branch opens one probe group", () => {
   const css = `/* css-console: log color */
 .duo::before, .duo { color: rgb(3, 3, 3); content: "x"; }`;
