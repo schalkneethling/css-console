@@ -47,18 +47,24 @@ function withFixture<T>(markup: string, body: (host: HTMLElement) => T): T {
 }
 
 test("limiting matched elements keeps the first matches in document order and reports the true total", () => {
+  // The branch order is the reverse of the document order on purpose:
+  // `matchBranches()` queries one branch at a time in authored order, so the
+  // `.late` elements enter the candidate map before any `.early` element,
+  // and only the document-order sort can put `first` back at the front. A
+  // fixture whose insertion order already agreed with document order would
+  // pass with the sort deleted, which is what this case exists to refuse.
   const branches = branchesOf(`/* css-console: log color */
-.item {
+.late, .early {
   color: rgb(1 2 3);
 }`);
 
   withFixture(
     `<ul>
-      <li class="item" id="first"></li>
-      <li class="item" id="second"></li>
-      <li class="item" id="third"></li>
-      <li class="item" id="fourth"></li>
-      <li class="item" id="fifth"></li>
+      <li class="early" id="first"></li>
+      <li class="late" id="second"></li>
+      <li class="early" id="third"></li>
+      <li class="late" id="fourth"></li>
+      <li class="early" id="fifth"></li>
     </ul>`,
     () => {
       const matched = matchBranches(branches);
