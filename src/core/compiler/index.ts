@@ -768,9 +768,19 @@ export type CompiledValueProbe = {
  * record for that call publishes. The identifier is the composed form
  * `FunctionRecord.probeId` publishes, function probe plus call site, so that
  * nothing downstream has to know the two halves exist.
+ *
+ * `indexed` mirrors `CompiledProbeProperty.indexed` for the same reason: the
+ * call site's own declaration sits in the guard index whenever its rule is
+ * probeable, so a guard evaluated for the call site's destination property
+ * without this entry would report the call site as its own competitor.
+ * `null` means the index excluded the declaration, which is reachable here,
+ * unlike on a compiled probe property: the guard index holds only
+ * declarations authored directly in a probeable rule, while a call site may
+ * sit in a declaration nested inside a conditional at-rule within its rule.
  */
 export type CompiledCallSite = ResolvedCallSite & {
   probeId: string;
+  indexed: IndexedDeclaration | null;
 };
 
 /**
@@ -1031,6 +1041,7 @@ function compileDeclarationTargetProbe(
  */
 function compileFunctionProbe(
   root: Root,
+  index: GuardIndex,
   associated: AssociatedAnnotation,
   target: FunctionTarget,
 ): ProbeCompilation {
@@ -1041,11 +1052,17 @@ function compileFunctionProbe(
 
   const callSites = resolution.callSites.map((callSite, position) => {
     const callSiteId = callSiteIds.at(position);
+    // The parallel declaration is what ties the call site back to its guard
+    // index entry; see `CompiledCallSite` for why the entry travels here.
+    const declaration = resolution.declarations.at(position);
+    const indexed =
+      declaration === undefined ? undefined : indexedDeclarationOf(index, declaration);
 
     return {
       ...callSite,
       probeId:
         callSiteId === undefined ? probeId : composeFunctionRecordProbeId(probeId, callSiteId),
+      indexed: indexed ?? null,
     };
   });
 
@@ -1083,7 +1100,7 @@ function compileAnnotation(
     return compileDeclarationTargetProbe(root, index, associated, target);
   }
 
-  return compileFunctionProbe(root, associated, target);
+  return compileFunctionProbe(root, index, associated, target);
 }
 
 /**

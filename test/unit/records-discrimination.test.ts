@@ -4,6 +4,8 @@ import type {
   Diagnostic,
   FunctionRecord,
   ProbeRecord,
+  ProbeStart,
+  ProbeSummary,
   ProbeValue,
   ScanEvent,
   ScanSummary,
@@ -145,7 +147,7 @@ function describeProbeRecord(record: ProbeRecord<string>): string {
 }
 
 /**
- * Narrows a scan event on its kind across the three event shapes, with a
+ * Narrows a scan event on its kind across the five event shapes, with a
  * never default that compiles only when the union is exhaustive.
  */
 function describeScanEvent(event: ScanEvent<string>): string {
@@ -157,6 +159,14 @@ function describeScanEvent(event: ScanEvent<string>): string {
     case "diagnostic": {
       const diagnostic: Diagnostic = event.diagnostic;
       return diagnostic.code;
+    }
+    case "probe-start": {
+      const start: ProbeStart = event.probe;
+      return start.probeKind === "value" ? start.selector : start.functionName;
+    }
+    case "probe-summary": {
+      const probeSummary: ProbeSummary = event.summary;
+      return probeSummary.records.toString();
     }
     case "summary": {
       const summary: ScanSummary<string> = event.summary;

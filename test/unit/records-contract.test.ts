@@ -3,10 +3,13 @@ import { expect, test } from "vite-plus/test";
 import type {
   CallSite,
   Diagnostic,
+  FunctionProbeStart,
   FunctionRecord,
   GuardReason,
   LogLevel,
   ProbeRecord,
+  ProbeStart,
+  ProbeSummary,
   ProbeValue,
   ScanEvent,
   ScanSummary,
@@ -14,6 +17,7 @@ import type {
   SourcePosition,
   Unsubscribe,
   ValueGuard,
+  ValueProbeStart,
   ValueRecord,
 } from "@schalkneethling/css-console";
 
@@ -97,6 +101,42 @@ const sampleDiagnostic: Diagnostic = {
   severity: "warning",
   message: "The browser does not yet support this at-rule.",
   docsUrl: "https://example.com/docs",
+};
+
+const sampleValueProbeStart: ValueProbeStart = {
+  probeId: "probe-1",
+  probeKind: "value",
+  logLevel: "log",
+  label: "brand color",
+  selector: ".card",
+  source: sampleLocation,
+};
+
+const sampleFunctionProbeStart: FunctionProbeStart = {
+  probeId: "probe-2",
+  probeKind: "function",
+  logLevel: "log",
+  functionName: "--space",
+  source: sampleLocation,
+};
+
+const sampleProbeSummary: ProbeSummary = {
+  probeId: "probe-1",
+  records: 2,
+  diagnostics: 0,
+  matches: { total: 3, evaluated: 2, omitted: 1 },
+};
+
+// The probe boundary events route through the scan event union, so a
+// subscriber switching over `kind` reaches both without a cast.
+const probeStartEvent: ScanEvent<string> = {
+  kind: "probe-start",
+  probe: sampleFunctionProbeStart,
+};
+
+const probeSummaryEvent: ScanEvent<string> = {
+  kind: "probe-summary",
+  summary: sampleProbeSummary,
 };
 
 const sampleSummary: ScanSummary<string> = {
@@ -198,13 +238,42 @@ export type ContractAssertions = [
     >
   >,
 
-  // The scan event is the closed union of the three event shapes.
+  // The scan event is the closed union of the five event shapes.
   Expect<
     Equal<
       ScanEvent<string>,
       | { kind: "record"; record: ProbeRecord<string> }
       | { kind: "diagnostic"; diagnostic: Diagnostic }
+      | { kind: "probe-start"; probe: ProbeStart }
+      | { kind: "probe-summary"; summary: ProbeSummary }
       | { kind: "summary"; summary: ScanSummary<string> }
+    >
+  >,
+
+  // The probe start is a pair discriminated on the probe kind, so the field
+  // that identifies the probe to a reader is required on each member rather
+  // than optional on a merged shape.
+  Expect<Equal<ProbeStart, ValueProbeStart | FunctionProbeStart>>,
+  Expect<Equal<ValueProbeStart["probeKind"], "value">>,
+  Expect<Equal<FunctionProbeStart["probeKind"], "function">>,
+  Expect<Equal<ValueProbeStart["probeId"], string>>,
+  Expect<Equal<ValueProbeStart["logLevel"], LogLevel>>,
+  Expect<Equal<ValueProbeStart["selector"], string>>,
+  Expect<Equal<ValueProbeStart["source"], SourceLocation>>,
+  Expect<Equal<FunctionProbeStart["functionName"], string>>,
+  Expect<Equal<FunctionProbeStart["source"], SourceLocation>>,
+
+  // The probe summary carries the counts a consumer needs to close a probe
+  // group without counting the records itself.
+  Expect<
+    Equal<
+      ProbeSummary,
+      {
+        probeId: string;
+        records: number;
+        diagnostics: number;
+        matches: { total: number; evaluated: number; omitted: number };
+      }
     >
   >,
 
@@ -266,4 +335,9 @@ test("the record samples carry the contracted field values at run time", () => {
   expect(diagnosticWithoutOptionalFields.source).toBeUndefined();
   expect(diagnosticWithOptionalFields.details?.atRule).toBe("@media");
   expect(valueRecordMissingProbeId.kind).toBe("value");
+  expect(sampleValueProbeStart.probeKind).toBe("value");
+  expect(sampleFunctionProbeStart.probeKind).toBe("function");
+  expect(sampleProbeSummary.matches).toEqual({ total: 3, evaluated: 2, omitted: 1 });
+  expect(probeStartEvent.kind).toBe("probe-start");
+  expect(probeSummaryEvent.kind).toBe("probe-summary");
 });

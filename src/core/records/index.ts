@@ -170,14 +170,98 @@ export type ScanSummary<TTarget> = {
 };
 
 /**
- * The subscriber event contract from the public API sketch: a scan emits a
- * record as it compiles or evaluates, a diagnostic as it detects a
- * condition, and a summary once the scan completes. Ordering semantics land
- * with CSSC-023, which specifies and tests them.
+ * The event that opens a value probe: what a consumer needs to open a
+ * console group for it before any of its records arrive. `selector` is the
+ * resolved selector list the probe matches, which is how an author
+ * recognizes the annotation they wrote, and `source` is the location of the
+ * annotation comment itself, because the group points at what the author
+ * wrote rather than at what it attached to.
+ *
+ * `probeId` identifies the probe as a whole, and for a value probe choosing
+ * it takes a decision, because record identity is finer than probe identity:
+ * a value probe's branches carry distinct identifiers when they name
+ * distinct pseudo-elements (CSSC-015), so `.card::before, .card` is one
+ * annotation publishing records under two identifiers. The decision is that
+ * the probe-level events carry the identifier of the probe's own first
+ * branch, in the order the compiler produced the branches. One start per branch was rejected because it would
+ * split one annotation into two console groups, which is not how an author
+ * reads their annotation; the branch identifiers remain observable on every
+ * record between the start and the summary.
+ */
+export type ValueProbeStart = {
+  probeId: string;
+  probeKind: "value";
+  logLevel: LogLevel;
+  label?: string;
+  selector: string;
+  source: SourceLocation;
+};
+
+/**
+ * The event that opens a function probe. `functionName` is the name a
+ * consumer titles the group with, `source` is the location of the annotation
+ * comment, and `probeId` is the function probe's own identifier; the records
+ * between the start and the summary carry the composed per-call-site
+ * identifiers that begin with it.
+ */
+export type FunctionProbeStart = {
+  probeId: string;
+  probeKind: "function";
+  logLevel: LogLevel;
+  label?: string;
+  functionName: string;
+  source: SourceLocation;
+};
+
+/**
+ * The payload of a probe-start event, discriminated on `probeKind` rather
+ * than merged into one shape with optional fields, because `selector` and
+ * `functionName` are mutually exclusive by kind and an optional field cannot
+ * say so.
+ */
+export type ProbeStart = ValueProbeStart | FunctionProbeStart;
+
+/**
+ * The payload of a probe-summary event: the counts one probe produced, so a
+ * consumer can close the probe's group and a subscriber can detect an empty
+ * or truncated probe without counting records itself. `records` and
+ * `diagnostics` count the events emitted between this probe's start and this
+ * summary, and `matches` carries the totals match limiting preserved, so a
+ * truncated probe still reports how many matches existed.
+ */
+export type ProbeSummary = {
+  probeId: string;
+  records: number;
+  diagnostics: number;
+  matches: { total: number; evaluated: number; omitted: number };
+};
+
+/**
+ * The subscriber event contract: a scan emits a record as it evaluates, a
+ * diagnostic as it detects a condition, a probe-start and a probe-summary
+ * around each probe's work, and a summary once the scan completes.
+ *
+ * ## Ordering
+ *
+ * The event order is specified rather than incidental, because the console
+ * adapter renders probes inside `console.groupCollapsed()` and a group can
+ * only be opened and closed around the events that belong to it:
+ *
+ * 1. Source-level diagnostics from compilation precede every probe event of
+ *    that source.
+ * 2. Each probe then emits, in compiled order: one probe-start, then its
+ *    records and diagnostics interleaved as evaluation produced them, then
+ *    one probe-summary.
+ * 3. A probe whose conditions are inactive still emits its probe-start and
+ *    probe-summary, with zero records, so a subscriber sees that the probe
+ *    existed and was skipped rather than seeing nothing at all.
+ * 4. The scan summary, when present, is the final event.
  */
 export type ScanEvent<TTarget> =
   | { kind: "record"; record: ProbeRecord<TTarget> }
   | { kind: "diagnostic"; diagnostic: Diagnostic }
+  | { kind: "probe-start"; probe: ProbeStart }
+  | { kind: "probe-summary"; summary: ProbeSummary }
   | { kind: "summary"; summary: ScanSummary<TTarget> };
 
 /**

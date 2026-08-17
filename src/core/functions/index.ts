@@ -115,9 +115,18 @@ export type DefinitionReference = {
  * result and silence, because an empty result is indistinguishable from a
  * probe that never ran, and "nothing calls this function" is itself the
  * answer an author is looking for.
+ *
+ * `declarations` is parallel to `callSites`: the entry at each position is
+ * the parsed declaration the call site at that position was found in, so two
+ * calls in one declaration value share one declaration node. It rides beside
+ * the call sites rather than on them, because `ResolvedCallSite` feeds the
+ * published `CompiledCallSite` shape and a PostCSS node must never leak into
+ * a published contract; compilation consumes the parallel array to pair each
+ * call site with its guard index entry and drops the nodes there.
  */
 export type CallSiteResolution = {
   callSites: readonly ResolvedCallSite[];
+  declarations: readonly Declaration[];
   definitionReferences: readonly DefinitionReference[];
   diagnostics: readonly Diagnostic[];
 };
@@ -325,6 +334,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
   const name = target.functionName;
 
   const callSites: ResolvedCallSite[] = [];
+  const declarations: Declaration[] = [];
   const definitionReferences: DefinitionReference[] = [];
   const diagnostics: Diagnostic[] = [];
   const reported = new Set<Rule>();
@@ -425,6 +435,7 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
         source: locationOf(declaration, url),
         context: declarationContext.context,
       });
+      declarations.push(declaration);
     }
   });
 
@@ -437,5 +448,5 @@ export function resolveCallSites(root: Root, target: FunctionTarget): CallSiteRe
     );
   }
 
-  return { callSites, definitionReferences, diagnostics };
+  return { callSites, declarations, definitionReferences, diagnostics };
 }

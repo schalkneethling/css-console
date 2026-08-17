@@ -2,10 +2,12 @@ import { expect, test } from "vite-plus/test";
 
 import { compileSource, guardCandidates } from "../../src/core/compiler/index.ts";
 import type {
+  CompiledCallSite,
   CompiledFunctionProbe,
   CompiledProbe,
   CompiledSource,
   CompiledValueProbe,
+  IndexedDeclaration,
 } from "../../src/core/compiler/index.ts";
 import type { ProbeRecord } from "../../src/core/records/index.ts";
 
@@ -251,6 +253,60 @@ test("a compiled call site nested inside its rule carries the nested condition t
   expect(probe.callSites.map((callSite) => callSite.context.entries)).toEqual([
     [{ kind: "media", condition: "(width > 40em)" }],
   ]);
+});
+
+test("a compiled call site carries the guard index entry of its own declaration", () => {
+  const compiled = compile(`/* css-console: log */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}
+
+.card {
+  padding: --space(4);
+}`);
+
+  const probe = functionProbe(compiled.probes[0]);
+  const callSite = probe.callSites[0];
+
+  expect(callSite?.indexed?.property).toBe("padding");
+  expect(callSite?.indexed?.selector).toBe(".card");
+  expect(callSite?.indexed?.important).toBe(false);
+
+  // The entry is the index's own entry rather than a copy of it, so passing
+  // it as `self` excludes the call site's declaration from its own guard
+  // candidates by identity. Only the .card rule declares padding, so the
+  // candidate set must come back empty: a structural copy would fail the
+  // identity-based exclusion and leave the real entry as a candidate, which
+  // a not-toContain assertion on the copy would never notice.
+  const candidates = guardCandidates(
+    compiled.guardIndex,
+    "padding",
+    callSite?.indexed ?? undefined,
+  );
+
+  expect([...candidates]).toHaveLength(0);
+});
+
+test("a call site whose declaration the guard index excludes carries a null entry", () => {
+  // The guard index holds only declarations authored directly in a probeable
+  // rule, so a declaration nested inside a conditional at-rule within the
+  // rule is absent from it, and the compiled call site says so with null
+  // rather than fabricating an entry.
+  const compiled = compile(`/* css-console: log */
+@function --space(--multiplier) {
+  result: calc(var(--multiplier) * 0.25rem);
+}
+
+.card {
+  @media (width > 40em) {
+    padding: --space(4);
+  }
+}`);
+
+  const probe = functionProbe(compiled.probes[0]);
+
+  expect(probe.callSites).toHaveLength(1);
+  expect(probe.callSites[0]?.indexed).toBeNull();
 });
 
 test("a function nothing calls compiles to a probe and an informational diagnostic", () => {
@@ -509,4 +565,8 @@ export type CompileSourceTypeAssertions = [
   Expect<Equal<CompiledProbe["kind"], ProbeRecord<unknown>["kind"]>>,
   Expect<Equal<CompiledValueProbe["kind"], "value">>,
   Expect<Equal<CompiledFunctionProbe["kind"], "function">>,
+
+  // A compiled call site carries its guard index entry, or null when the
+  // index excluded its declaration, mirroring `CompiledProbeProperty`.
+  Expect<Equal<CompiledCallSite["indexed"], IndexedDeclaration | null>>,
 ];
