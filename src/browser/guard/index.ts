@@ -79,6 +79,16 @@ import { isContextActive } from "../conditions/index.ts";
  */
 export type GuardEvaluation = {
   element: Element;
+  /**
+   * The pseudo-element the probed values were read from, or `null` for the
+   * element itself. The unresolved-variable reason resolves references
+   * against `getComputedStyle(element, pseudo)`, because custom properties
+   * cascade per element and pseudo-element pair: a `--tone` declared only in
+   * a `::before` rule resolves for the pseudo-element and is absent from the
+   * originating element, so reading the element would fail a reference the
+   * engine resolved.
+   */
+  pseudo: string | null;
   property: CompiledProbeProperty;
   index: GuardIndex;
   writingMode: WritingMode;
@@ -393,8 +403,11 @@ function isReferenceBoundary(text: string, index: number): boolean {
  *
  * Quoted strings are skipped wherever text is scanned, so `var(` inside a
  * string is authored text, matching the compiler's own reference extraction.
- * The `var(` boundary check likewise matches the compiler's: a dashed
- * function name ending in `var` is a call, never a reference.
+ * The `var(` comparison folds ASCII case, because CSS function names are
+ * case-insensitive and the compiler's scanner carries the `i` flag, so
+ * `VAR(--x)` is the same reference under both scanners and in the engine.
+ * The boundary check likewise matches the compiler's: a dashed function
+ * name ending in `var` is a call, never a reference.
  */
 function substituteReferences(text: string, lookup: (name: string) => string): Substitution {
   let result = "";
@@ -412,7 +425,7 @@ function substituteReferences(text: string, lookup: (name: string) => string): S
       continue;
     }
 
-    if (text.startsWith("var(", index) && isReferenceBoundary(text, index)) {
+    if (text.slice(index, index + 4).toLowerCase() === "var(" && isReferenceBoundary(text, index)) {
       const argsStart = index + 4;
       const argsEnd = matchingParen(text, argsStart);
 
@@ -483,13 +496,13 @@ function substituteReferences(text: string, lookup: (name: string) => string): S
  * engine resolved.
  */
 function hasUnresolvedVariable(evaluation: GuardEvaluation): boolean {
-  const { element, property } = evaluation;
+  const { element, pseudo, property } = evaluation;
 
   if (property.customProperties.length === 0) {
     return false;
   }
 
-  const declaration = getComputedStyle(element);
+  const declaration = getComputedStyle(element, pseudo);
   const substitution = substituteReferences(property.authored, (name) =>
     declaration.getPropertyValue(name),
   );
