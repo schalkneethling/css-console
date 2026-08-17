@@ -106,9 +106,8 @@ export type GuardSubject = {
 /**
  * Everything one guard evaluation consumes: the element the value was read
  * from, the guard subject carrying the probed declaration's authored value,
- * importance, custom property references, and its own index entry, the guard
- * index over the property's source, and the flow facts of the box the value
- * came from.
+ * custom property references, and its own index entry, the guard index over
+ * the property's source, and the flow facts of the box the value came from.
  *
  * `writingMode` and `direction` come from `readResolvedValues()` on the same
  * element, so the logical resolution the competition test performs describes
