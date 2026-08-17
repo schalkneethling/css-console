@@ -249,6 +249,12 @@ test("label appears on records and starts only when the annotation carries one",
     expect(taggedStart?.label).toBe("branded");
     expect(taggedRecord?.label).toBe("branded");
 
+    // Both probes must have emitted, because Object.keys(undefined ?? {})
+    // is an empty array and the absence assertions below would pass
+    // trivially against a stream missing the unlabeled probe.
+    expect(starts(events)).toHaveLength(2);
+    expect(records(events)).toHaveLength(2);
+
     // The absent label is an absent key rather than a key holding undefined,
     // so serialization and key enumeration never surface a field the
     // annotation did not carry.

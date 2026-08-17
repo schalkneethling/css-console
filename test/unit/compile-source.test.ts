@@ -274,15 +274,17 @@ test("a compiled call site carries the guard index entry of its own declaration"
 
   // The entry is the index's own entry rather than a copy of it, so passing
   // it as `self` excludes the call site's declaration from its own guard
-  // candidates by identity.
+  // candidates by identity. Only the .card rule declares padding, so the
+  // candidate set must come back empty: a structural copy would fail the
+  // identity-based exclusion and leave the real entry as a candidate, which
+  // a not-toContain assertion on the copy would never notice.
   const candidates = guardCandidates(
     compiled.guardIndex,
     "padding",
     callSite?.indexed ?? undefined,
   );
 
-  expect(callSite?.indexed === undefined || callSite.indexed === null).toBe(false);
-  expect([...candidates]).not.toContain(callSite?.indexed);
+  expect([...candidates]).toHaveLength(0);
 });
 
 test("a call site whose declaration the guard index excludes carries a null entry", () => {
