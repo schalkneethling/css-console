@@ -347,7 +347,9 @@ test("a probe is never its own guard candidate, and a competitor still is", () =
   const candidates = guardCandidates(compiled.guardIndex, "color", color?.indexed ?? undefined);
 
   expect(
-    candidates.has(color?.indexed ?? { property: "", selector: "", context: { entries: [] } }),
+    candidates.has(
+      color?.indexed ?? { property: "", selector: "", context: { entries: [] }, important: false },
+    ),
   ).toBe(false);
   expect([...candidates].map((candidate) => candidate.selector).sort()).toEqual([
     ".widget",

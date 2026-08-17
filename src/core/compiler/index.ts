@@ -38,6 +38,7 @@ export {
   competesInWritingMode,
   guardCandidates,
   indexedDeclarationOf,
+  propertiesCompete,
 } from "./guard-index.ts";
 export type { GuardIndex, IndexedDeclaration } from "./guard-index.ts";
 
