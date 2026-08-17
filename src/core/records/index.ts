@@ -177,13 +177,13 @@ export type ScanSummary<TTarget> = {
  * annotation comment itself, because the group points at what the author
  * wrote rather than at what it attached to.
  *
- * `probeId` identifies the probe as a whole, and for a value probe that
- * needs a decision, because record identity is finer than probe identity: a
- * value probe's branches carry distinct identifiers when they name distinct
- * pseudo-elements (CSSC-015), so `.card::before, .card` is one annotation
- * publishing records under two identifiers. The probe-level events carry the
- * identifier of the probe's own first branch, in the order the compiler
- * produced the branches. One start per branch was rejected because it would
+ * `probeId` identifies the probe as a whole, and for a value probe choosing
+ * it takes a decision, because record identity is finer than probe identity:
+ * a value probe's branches carry distinct identifiers when they name
+ * distinct pseudo-elements (CSSC-015), so `.card::before, .card` is one
+ * annotation publishing records under two identifiers. The decision is that
+ * the probe-level events carry the identifier of the probe's own first
+ * branch, in the order the compiler produced the branches. One start per branch was rejected because it would
  * split one annotation into two console groups, which is not how an author
  * reads their annotation; the branch identifiers remain observable on every
  * record between the start and the summary.
