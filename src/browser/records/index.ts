@@ -302,14 +302,12 @@ function evaluateValueProbe(
  * property references are the recorded gap the module doc comment carries:
  * a call site retains neither, so `unresolved-variable` cannot fire, and
  * the empty reference list is what keeps the check from running against a
- * fabricated value. The importance flag rides on the call site's own index
- * entry when the index holds one.
+ * fabricated value.
  */
 function callSiteSubject(callSite: CompiledCallSite): GuardSubject {
   return {
     name: callSite.property,
     authored: "",
-    important: callSite.indexed?.important ?? false,
     customProperties: [],
     indexed: callSite.indexed,
   };

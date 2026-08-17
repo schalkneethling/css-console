@@ -90,8 +90,6 @@ import { isContextActive } from "../conditions/index.ts";
  *   unresolved-variable reason substitutes references into. A caller that
  *   did not retain the authored value passes the empty string, and the
  *   reason then never fires, because `customProperties` gates the check.
- * - `important` is whether the probed declaration itself carries
- *   `!important`, kept for parity with the compiled property shape.
  * - `customProperties` lists the `var()` references the authored value
  *   contains, and an empty list disables the unresolved-variable reason.
  * - `indexed` is the declaration's own guard index entry, which excludes the
@@ -101,7 +99,6 @@ import { isContextActive } from "../conditions/index.ts";
 export type GuardSubject = {
   name: string;
   authored: string;
-  important: boolean;
   customProperties: readonly CustomPropertyReference[];
   indexed: IndexedDeclaration | null;
 };
