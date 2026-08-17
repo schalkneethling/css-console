@@ -42,10 +42,13 @@
  *
  * `maxElements` bounds how many matches one probe evaluates, defaulting to
  * `DEFAULT_MAX_ELEMENTS`, and the probe-summary keeps the totals limiting
- * preserved. For a function probe the limit applies per call site, to that
- * call site's matched elements, because a call site is the unit a function
- * record reports; the summary sums totals across call sites, so a truncated
- * call site is still visible in the difference between total and evaluated.
+ * preserved. For a function probe the bound is a budget spent across its
+ * call sites in resolution order, so the probe as a whole evaluates at most
+ * `maxElements` matches however many declarations call the function. Each
+ * call site still counts its own matches in full, because a call site is the
+ * unit a function record reports; the summary sums those totals, so a
+ * truncated call site stays visible in the difference between total and
+ * evaluated.
  *
  * ## The function record guard has one recorded gap
  *
@@ -140,8 +143,14 @@ export type EvaluateSourceOptions = {
   maxElements?: number;
 };
 
-/** The zero match counts an inactive probe reports. */
-const NO_MATCHES: ProbeSummary["matches"] = { total: 0, evaluated: 0, omitted: 0 };
+/**
+ * The zero match counts an inactive probe reports, built fresh per summary:
+ * the published shape is mutable, so a shared object would let a consumer's
+ * write to one summary change every other summary holding it.
+ */
+function noMatches(): ProbeSummary["matches"] {
+  return { total: 0, evaluated: 0, omitted: 0 };
+}
 
 /**
  * The probe-start payload of a value probe. The probe-level identifier is
@@ -221,7 +230,7 @@ function evaluateValueProbe(
   if (!isContextActive(probe.context)) {
     events.push({
       kind: "probe-summary",
-      summary: { probeId, records: 0, diagnostics: 0, matches: NO_MATCHES },
+      summary: { probeId, records: 0, diagnostics: 0, matches: noMatches() },
     });
 
     return;
@@ -333,10 +342,12 @@ function evaluateFunctionProbeEvents(
 
   const matches = { total: 0, evaluated: 0, omitted: 0 };
   let recordCount = 0;
+  let remaining = options.maxElements;
 
   for (const evaluated of evaluation.callSites) {
-    const limited = limitMatches(evaluated.evaluations, options.maxElements);
+    const limited = limitMatches(evaluated.evaluations, remaining);
 
+    remaining -= limited.evaluated.length;
     matches.total += limited.total;
     matches.evaluated += limited.evaluated.length;
     matches.omitted += limited.omitted;
