@@ -34,16 +34,12 @@ export const DEFAULT_MAX_ELEMENTS = 50;
  * now so that later work has one place to validate the option rather than
  * reimplementing the check.
  *
- * The thrown error type follows the reason the value is rejected, matching
- * how JavaScript's own built-ins split the two failures: a value that is not
- * an integer at all, including `NaN`, `Infinity`, a fractional number, or a
- * value that is not a number, throws `TypeError`, the same type
- * `Number.isInteger()`-style validation throws for a wrong kind of value
- * elsewhere in the platform, such as `Array(-1)` throwing `RangeError` versus
- * a non-numeric `Array` argument coercing instead. Here, "wrong kind of
- * value" covers non-integers together with non-numbers, because both mean the
- * input is not the integer the option requires. A value that is an integer
- * but falls outside the allowed range, meaning it is negative, throws
+ * The thrown error type follows the reason the value is rejected: a value
+ * that is not an integer at all, including `NaN`, `Infinity`, a fractional
+ * number, or a value that is not a number, throws `TypeError`. Here, "wrong
+ * kind of value" covers non-integers together with non-numbers, because both
+ * mean the input is not the integer the option requires. A value that is an
+ * integer but falls outside the allowed range, meaning it is negative, throws
  * `RangeError`, matching built-ins such as `String.prototype.repeat()`,
  * which throws `RangeError` for a negative count. Zero is not out of range:
  * `maxElements: 0` is a valid instruction to evaluate no matches while still
