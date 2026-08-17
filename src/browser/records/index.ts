@@ -246,6 +246,7 @@ function evaluateValueProbe(
       ...value,
       guard: evaluateGuard({
         element: match.element,
+        pseudo: match.branch.pseudo,
         property: probe.properties[position] ?? probe.properties[0],
         index,
         writingMode: reading.writingMode,
@@ -344,6 +345,9 @@ function evaluateFunctionProbeEvents(
       const flow = readResolvedValues(element, null, []);
       const guard = evaluateGuard({
         element,
+        // A call site's synthesized branch never carries a pseudo-element;
+        // pseudo-element call-site selectors are a recorded deferred item.
+        pseudo: null,
         property: callSiteSubject(evaluated.callSite),
         index,
         writingMode: flow.writingMode,

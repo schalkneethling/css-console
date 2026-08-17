@@ -130,6 +130,7 @@ function guardOf(host: HTMLElement, css: string, propertyName?: string): ValueGu
 
   return evaluateGuard({
     element: match.element,
+    pseudo: match.branch.pseudo,
     property,
     index: compiled.guardIndex,
     writingMode: reading.writingMode,
@@ -379,6 +380,47 @@ test("an unset custom property without a fallback fires unresolved-variable", ()
       contested: true,
       reasons: ["unresolved-variable"],
     });
+  });
+});
+
+test("an uppercase VAR() spelling fires unresolved-variable exactly as the lowercase one", () => {
+  const css = `/* css-console: log color */
+.card { color: VAR(--missing); }`;
+
+  withFixture(`<p class="card"></p>`, css, (host) => {
+    // The engine half first: CSS function names are ASCII case-insensitive,
+    // so the uppercase spelling is a real declaration Chromium really
+    // invalidated, computing to the initial color rather than being dropped
+    // at parse time. Read against headless Chromium 151.0.7922.34.
+    const element = host.querySelector(".card") as Element;
+
+    expect(getComputedStyle(element).getPropertyValue("color")).toBe("rgb(0, 0, 0)");
+
+    expect(guardOf(host, css)).toEqual({
+      contested: true,
+      reasons: ["unresolved-variable"],
+    });
+  });
+});
+
+test("a custom property declared on the pseudo-element itself does not fire", () => {
+  // The values a pseudo-element probe reports come from
+  // getComputedStyle(element, pseudo), and custom properties cascade per
+  // element and pseudo-element pair, so the reference check must read the
+  // same declaration. Reading the originating element would miss --tone,
+  // which only the ::before rule declares, and report unresolved-variable
+  // for a reference the engine resolved. The computed assertion pins the
+  // engine half against headless Chromium 151.0.7922.34.
+  const css = `/* css-console: log color */
+.decorated::before { content: ""; --tone: rgb(0, 128, 0); color: var(--tone); }`;
+
+  withFixture(`<p class="decorated"></p>`, css, (host) => {
+    const element = host.querySelector(".decorated") as Element;
+
+    expect(getComputedStyle(element, "::before").getPropertyValue("color")).toBe("rgb(0, 128, 0)");
+    expect(getComputedStyle(element).getPropertyValue("--tone")).toBe("");
+
+    expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
   });
 });
 
