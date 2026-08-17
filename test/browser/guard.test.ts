@@ -274,6 +274,89 @@ test("an inline custom property fires inline-style for the probed custom propert
   });
 });
 
+test("an important inline style fires important beside inline-style", () => {
+  // A competitor existing and a competitor carrying !important are two
+  // facts, and the module doc promises both are reported wherever the
+  // competitor lives. The style attribute reports priority through
+  // getPropertyPriority(), which answers "important" here in headless
+  // Chromium 151.0.7922.34.
+  const css = `/* css-console: log color */
+.card { color: red; }`;
+
+  withFixture(`<p class="card" style="color: blue !important"></p>`, css, (host) => {
+    expect(guardOf(host, css)).toEqual({
+      contested: true,
+      reasons: ["inline-style", "important"],
+    });
+  });
+});
+
+test("an inline style does not compete with a pseudo-element probe", () => {
+  // A style attribute declares on the element's own box, and no inline
+  // syntax can address a pseudo-element, so an inline color cannot be
+  // responsible for the value a ::before rule produced.
+  const css = `/* css-console: log color */
+.decorated::before { content: ""; color: red; }`;
+
+  withFixture(`<p class="decorated" style="color: blue"></p>`, css, (host) => {
+    expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+  });
+});
+
+test("an element rule does not compete with a pseudo-element probe", () => {
+  // The element's own color declaration styles the element's box. The
+  // ::before box takes it only through inheritance, which every directly
+  // declared value beats, so the element rule cannot be responsible for the
+  // reported value and must not fire competing-declaration.
+  const css = `/* css-console: log color */
+.decorated::before { content: ""; color: red; }
+.decorated { color: blue; }`;
+
+  withFixture(`<p class="decorated"></p>`, css, (host) => {
+    expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+  });
+});
+
+test("a rule on the same pseudo-element fires competing-declaration", () => {
+  // Element.matches() answers false for any selector carrying a
+  // pseudo-element (pinned below), so the candidate's branches are compared
+  // by originating selector and pseudo-element instead: a second rule
+  // declaring color on the same ::before box is a real competitor.
+  const css = `/* css-console: log color */
+.decorated::before { content: ""; color: red; }
+.other::before { color: blue; }`;
+
+  withFixture(`<p class="decorated other"></p>`, css, (host) => {
+    expect(guardOf(host, css)).toEqual({
+      contested: true,
+      reasons: ["competing-declaration"],
+    });
+  });
+});
+
+test("a rule on a different pseudo-element of the same element does not compete", () => {
+  const css = `/* css-console: log color */
+.decorated::before { content: ""; color: red; }
+.decorated::after { content: ""; color: blue; }`;
+
+  withFixture(`<p class="decorated"></p>`, css, (host) => {
+    expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+  });
+});
+
+test("matches() never matches a selector carrying a pseudo-element", () => {
+  // The engine fact the branch comparison rests on, pinned against headless
+  // Chromium 151.0.7922.34 rather than recalled: a pseudo-element selector
+  // selects a box no element is, so Element.matches() answers false however
+  // well the originating selector fits.
+  const element = document.createElement("p");
+
+  element.className = "pinned";
+
+  expect(element.matches(".pinned")).toBe(true);
+  expect(element.matches(".pinned::before")).toBe(false);
+});
+
 test("an inline style on an unrelated property does not fire inline-style", () => {
   const css = `/* css-console: log color */
 .card { color: red; }`;
@@ -367,6 +450,84 @@ test("a running animation on an unrelated property does not fire", async () => {
       await nextFrame();
 
       expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+    },
+  );
+});
+
+test("an animation running on the probed pseudo-element fires animation-or-transition", async () => {
+  // element.getAnimations() omits pseudo-element animations, while the
+  // subtree form returns them with the effect naming its pseudo-element
+  // (pinned in the case below), so the guard has to ask with subtree and
+  // filter to the probed box.
+  const css = `/* css-console: log margin-left */
+.decorated::before { content: ""; margin-left: 0px; }`;
+
+  await withLiveFixture(
+    `<p class="decorated"></p>`,
+    css,
+    `@keyframes guard-pseudo-slide { from { margin-left: 0px; } to { margin-left: 300px; } }
+.decorated::before { animation: guard-pseudo-slide 100s linear; }`,
+    async (host) => {
+      await nextFrame();
+
+      expect(guardOf(host, css)).toEqual({
+        contested: true,
+        reasons: ["animation-or-transition"],
+      });
+    },
+  );
+});
+
+test("an animation on a pseudo-element does not fire for the element's own probe", async () => {
+  const css = `/* css-console: log margin-left */
+.card { margin-left: 0px; }`;
+
+  await withLiveFixture(
+    `<p class="card"></p>`,
+    css,
+    `@keyframes guard-aside { from { margin-left: 0px; } to { margin-left: 300px; } }
+.card::before { content: ""; animation: guard-aside 100s linear; }`,
+    async (host) => {
+      await nextFrame();
+
+      expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+    },
+  );
+});
+
+test("getAnimations() reports pseudo-element animations only through subtree", async () => {
+  // The engine fact the pseudo-element filter rests on, pinned against
+  // headless Chromium 151.0.7922.34: the plain call answers nothing for an
+  // animation running on ::before, and the subtree call returns it with the
+  // effect naming the pseudo-element and targeting the originating element.
+  await withLiveFixture(
+    `<p class="pinned-animation"></p>`,
+    `/* no compiled probe is needed for this engine pin */`,
+    `@keyframes guard-pin { from { opacity: 0; } to { opacity: 1; } }
+.pinned-animation::before { content: ""; animation: guard-pin 100s linear; }`,
+    async (host) => {
+      await nextFrame();
+
+      const element = host.querySelector(".pinned-animation");
+
+      if (element === null) {
+        throw new Error("expected the fixture element");
+      }
+
+      expect(element.getAnimations()).toHaveLength(0);
+
+      const subtree = element.getAnimations({ subtree: true });
+
+      expect(subtree).toHaveLength(1);
+
+      const effect = subtree[0]?.effect;
+
+      if (!(effect instanceof KeyframeEffect)) {
+        throw new Error("expected a keyframe effect");
+      }
+
+      expect(effect.pseudoElement).toBe("::before");
+      expect(effect.target).toBe(element);
     },
   );
 });

@@ -60,6 +60,7 @@ import {
   competesInWritingMode,
   guardCandidates,
   propertiesCompete,
+  splitSelectorBranches,
 } from "../../core/compiler/index.ts";
 import type { CompiledProbeProperty, GuardIndex } from "../../core/compiler/index.ts";
 import type { Direction, WritingMode } from "../../core/expansion/index.ts";
@@ -114,14 +115,61 @@ function selectorMatches(element: Element, selector: string): boolean {
 }
 
 /**
+ * The placeholder location branch splitting requires. The diagnostics the
+ * split produces alongside its branches are discarded here, because the
+ * candidate's rule already compiled and any selector defect was reported
+ * then, so the location never reaches an author.
+ */
+const CANDIDATE_SOURCE = {
+  url: "about:guard-candidate",
+  start: { line: 1, column: 1 },
+  end: { line: 1, column: 1 },
+} as const;
+
+/**
+ * Whether a candidate's selector addresses the probed box: the element and
+ * pseudo-element pair the reported values were read from.
+ *
+ * `Element.matches()` answers false for any selector carrying a
+ * pseudo-element, however well the originating selector fits, because a
+ * pseudo-element's box is a box no element is (pinned in the browser suite
+ * against headless Chromium 151.0.7922.34). So the candidate's selector list
+ * is split into branches exactly as a probe's own selector is, and a branch
+ * competes when it names the probed pseudo-element, or none for an element
+ * probe, and its originating selector matches the element.
+ *
+ * The box alignment cuts both ways. A rule on `.card` cannot be responsible
+ * for a value a `.card::before` rule produced, because the element's
+ * declaration reaches the pseudo-element's box only through inheritance,
+ * which every directly declared value beats. And a rule on `.other::before`
+ * competes with a probed `.card::before` on an element carrying both
+ * classes, even though `matches()` alone would never see it.
+ *
+ * A selector list the split discards entirely, because one of its branches
+ * is empty, is a rule the engine dropped as a whole, so it competes with
+ * nothing; a deferred branch inside an otherwise valid list is dropped from
+ * the comparison while its siblings still compete, matching how the compiler
+ * treats the probe's own list.
+ */
+function candidateAddressesBox(element: Element, pseudo: string | null, selector: string): boolean {
+  const { branches } = splitSelectorBranches(selector, CANDIDATE_SOURCE);
+
+  return branches.some(
+    (branch) => branch.pseudo === pseudo && selectorMatches(element, branch.selector),
+  );
+}
+
+/**
  * The two facts one pass over the guard candidates establishes: whether any
  * candidate competes, and whether a competing candidate carries `!important`.
  *
  * A candidate competes when all three of its gates pass: its rule context is
  * active in this browser right now (a competitor inside an inactive `@media`
- * never applied), its selector matches this element (a competitor elsewhere
- * in the document competes with nothing here), and its property touches a
- * longhand in common with the probed property under this element's flow.
+ * never applied), its selector addresses the probed box (a competitor
+ * elsewhere in the document, or on another box of this element, competes
+ * with nothing here; see `candidateAddressesBox()`), and its property
+ * touches a longhand in common with the probed property under this
+ * element's flow.
  * The gates are facts about the candidate, never comparisons between
  * candidates, and the pass stops as soon as both answers are known: one
  * competitor fires the reason, and nothing counts beyond that.
@@ -132,7 +180,7 @@ function selectorMatches(element: Element, selector: string): boolean {
  * real competitor whichever of the two the probe reports.
  */
 function competingFacts(evaluation: GuardEvaluation): { competing: boolean; important: boolean } {
-  const { element, property, index, writingMode, direction } = evaluation;
+  const { element, pseudo, property, index, writingMode, direction } = evaluation;
   const candidates = guardCandidates(index, property.name, property.indexed ?? undefined);
 
   let competing = false;
@@ -143,7 +191,7 @@ function competingFacts(evaluation: GuardEvaluation): { competing: boolean; impo
       continue;
     }
 
-    if (!selectorMatches(element, candidate.selector)) {
+    if (!candidateAddressesBox(element, pseudo, candidate.selector)) {
       continue;
     }
 
@@ -164,7 +212,19 @@ function competingFacts(evaluation: GuardEvaluation): { competing: boolean; impo
 
 /**
  * Whether the element's style attribute declares the probed property or a
- * property that resets it.
+ * property that resets it, and whether that inline declaration carries
+ * `!important`.
+ *
+ * A pseudo-element probe never fires this reason, because a style attribute
+ * declares on the element's own box and no inline syntax can address a
+ * pseudo-element, so an inline declaration cannot be responsible for a value
+ * a pseudo-element rule produced.
+ *
+ * The priority is read through `getPropertyPriority()`, which answers
+ * `"important"` for an inline `!important` in Chromium 151.0.7922.34, pinned
+ * in the browser suite. An inline shorthand set with `!important` reports
+ * the priority on each enumerated longhand, so the fact survives the
+ * shorthand expansion the enumeration performs.
  *
  * `element.style` is a read: the `CSSStyleDeclaration` reflects the style
  * attribute without parsing it here, and an element with no inline style
@@ -179,21 +239,33 @@ function competingFacts(evaluation: GuardEvaluation): { competing: boolean; impo
  * An element with no `style` property at all, which `Element` permits even
  * though every HTML and SVG element carries one, declares nothing inline.
  */
-function declaresInline(evaluation: GuardEvaluation): boolean {
-  const { element, property, writingMode, direction } = evaluation;
+function declaresInline(evaluation: GuardEvaluation): { declares: boolean; important: boolean } {
+  const { element, pseudo, property, writingMode, direction } = evaluation;
   const style = (element as Element & { style?: unknown }).style;
 
-  if (!(style instanceof CSSStyleDeclaration)) {
-    return false;
+  if (pseudo !== null || !(style instanceof CSSStyleDeclaration)) {
+    return { declares: false, important: false };
   }
 
+  let declares = false;
+  let important = false;
+
   for (let index = 0; index < style.length; index += 1) {
-    if (propertiesCompete(style.item(index), property.name, writingMode, direction)) {
-      return true;
+    const name = style.item(index);
+
+    if (!propertiesCompete(name, property.name, writingMode, direction)) {
+      continue;
+    }
+
+    declares = true;
+
+    if (style.getPropertyPriority(name) === "important") {
+      important = true;
+      break;
     }
   }
 
-  return false;
+  return { declares, important };
 }
 
 /**
@@ -253,20 +325,28 @@ function keyframePropertyName(key: string): string {
  * probed `margin-left` exactly as a declaration would.
  */
 function animatesProperty(evaluation: GuardEvaluation): boolean {
-  const { element, property, writingMode, direction } = evaluation;
+  const { element, pseudo, property, writingMode, direction } = evaluation;
 
-  for (const animation of element.getAnimations()) {
+  for (const animation of element.getAnimations({ subtree: true })) {
+    const effect = animation.effect;
+
+    if (!(effect instanceof KeyframeEffect)) {
+      continue;
+    }
+
+    // The subtree call is the only form that reports pseudo-element
+    // animations (pinned in the browser suite), and it also reports the
+    // descendants' animations, so the effect is filtered to the probed box:
+    // this element, under the probed pseudo-element or none.
+    if (effect.target !== element || (effect.pseudoElement ?? null) !== pseudo) {
+      continue;
+    }
+
     if (animation instanceof CSSTransition) {
       if (propertiesCompete(animation.transitionProperty, property.name, writingMode, direction)) {
         return true;
       }
 
-      continue;
-    }
-
-    const effect = animation.effect;
-
-    if (!(effect instanceof KeyframeEffect)) {
       continue;
     }
 
@@ -533,16 +613,17 @@ function hasUnresolvedVariable(evaluation: GuardEvaluation): boolean {
 export function evaluateGuard(evaluation: GuardEvaluation): ValueGuard {
   const reasons: GuardReason[] = [];
   const { competing, important } = competingFacts(evaluation);
+  const inline = declaresInline(evaluation);
 
   if (competing) {
     reasons.push("competing-declaration");
   }
 
-  if (declaresInline(evaluation)) {
+  if (inline.declares) {
     reasons.push("inline-style");
   }
 
-  if (important) {
+  if (important || inline.important) {
     reasons.push("important");
   }
 
