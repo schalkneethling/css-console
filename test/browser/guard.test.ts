@@ -495,6 +495,39 @@ test("an animation on a pseudo-element does not fire for the element's own probe
   );
 });
 
+test("an animation on a boxless pseudo-element never runs, so the guard stays silent", async () => {
+  // A pseudo-element whose content computes to none generates no box, and an
+  // animation declared on a boxless pseudo-element never starts: verified
+  // against headless Chromium 151.0.7922.34, where getAnimations({ subtree:
+  // true }) returns nothing for it and the probed value stays at its static
+  // declaration. The guard's silence is therefore the honest answer rather
+  // than a missed detection, and this case exists so an engine that starts
+  // running such animations fails the lane instead of quietly turning the
+  // silence into a false negative. The content declaration is the only
+  // difference from the firing case above.
+  const css = `/* css-console: log margin-left */
+.decorated::before { margin-left: 0px; }`;
+
+  await withLiveFixture(
+    `<p class="decorated"></p>`,
+    css,
+    `@keyframes guard-boxless { from { margin-left: 0px; } to { margin-left: 300px; } }
+.decorated::before { animation: guard-boxless 100s linear; }`,
+    async (host) => {
+      await nextFrame();
+
+      const element = host.querySelector(".decorated");
+
+      if (element === null) {
+        throw new Error("expected the fixture element");
+      }
+
+      expect(element.getAnimations({ subtree: true })).toHaveLength(0);
+      expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
+    },
+  );
+});
+
 test("getAnimations() reports pseudo-element animations only through subtree", async () => {
   // The engine fact the pseudo-element filter rests on, pinned against
   // headless Chromium 151.0.7922.34: the plain call answers nothing for an
