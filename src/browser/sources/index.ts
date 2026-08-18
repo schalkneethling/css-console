@@ -1,5 +1,5 @@
 /**
- * Source discovery and loading.
+ * Source discovery, loading, and gating.
  *
  * A scan needs CSS text and a name for it before anything else can happen.
  * This module supplies it for three kinds of source: inline `<style>`
@@ -9,22 +9,21 @@
  * nothing anywhere. `DiscoveredSource` is a union over all three, and
  * `kind` is what a consumer discriminates on.
  *
- * Discovery is only discovery. Nothing here compiles or decides whether a
+ * Discovery is only discovery. Nothing in it compiles or decides whether a
  * source applies. A `disabled` style element and a `media="print"` style
- * element are both returned, because whether a source contributes is a
+ * element are both discovered, because whether a source contributes is a
  * question about the browser reading it rather than about the tree
- * containing it, and CSSC-027 answers it in one place for inline and linked
- * sources together. Filtering here would split that decision across two
- * modules and hide the print-media case from the gate that exists to report
- * it.
+ * containing it, and `gateSources()` below answers it in one place for inline
+ * and linked sources together. Filtering during discovery would split that
+ * decision across two passes and hide the print-media case from the gate that
+ * exists to report it.
  *
  * Fetching is separate from discovery for the same reason discovery is
  * separate from gating. `discoverLinkElements()` is synchronous and answers
  * which elements are stylesheet links; `loadLinkedSources()` is asynchronous
- * and answers what those links contain. Keeping the two apart means the gate
- * that CSSC-027 adds can decide against a link before anything is requested
- * for it, and it means the selection rule can be tested without a network at
- * all.
+ * and answers what those links contain. Keeping the two apart means a caller
+ * can decide against a link before anything is requested for it, and it means
+ * the selection rule can be tested without a network at all.
  *
  * ## The read-only guarantee
  *
@@ -253,8 +252,8 @@
  * `rel="alternate stylesheet"` is selected, because it carries the token.
  * Whether an alternate stylesheet is applied is a question about the browser
  * reading it rather than about the tree containing it, which is exactly the
- * question CSSC-027 owns for `disabled` and `media` alike, so refusing it
- * here would hide it from the gate that exists to report it.
+ * question `gateSources()` owns for `disabled` and `media` alike, so refusing
+ * it here would hide it from the gate that exists to report it.
  *
  * A blank `href` is skipped, and skipping it matters more than it looks.
  * Pinned rather than recalled: with no `href` attribute at all, the `href`
@@ -301,7 +300,129 @@
  * carries no annotation, so it compiles to no probe, and a body that is not
  * parseable as CSS is already reported by `compileSource()` as
  * `SOURCE_PARSE_FAILED` with a location. Whether the engine applied a
- * stylesheet at all is a gating question, and CSSC-027 is where it belongs.
+ * stylesheet at all is a gating question, and `gateSources()` is where it
+ * belongs.
+ *
+ * ## Gating: what the browser is reading right now
+ *
+ * `gateSources()` sorts every discovered source into three buckets, and the
+ * split between them is the split between two different questions. `inactive`
+ * holds the sources the browser is not reading, which is a fact about the
+ * engine at the moment of the call. `excluded` holds the sources the caller
+ * asked not to consider, which is a policy the caller chose. `active` holds
+ * the rest, and it is the only bucket a scan compiles.
+ *
+ * They are separate buckets rather than one "skipped" bucket because a scan
+ * summary reports them separately (`sources: { discovered, compiled, failed,
+ * excluded }`), and because merging them would make a report unable to say
+ * whether a stylesheet is missing from it because the browser is not applying
+ * it or because the caller filtered it out. Those call for different actions
+ * from whoever reads the report. Exclusion wins when a source is both, for the
+ * same reason: a caller who excluded a stylesheet is not asking to be told
+ * what its `media` attribute says, and reporting their own decision as a fact
+ * about the engine would misattribute it.
+ *
+ * A source is active when it is not disabled and its media applies. Both
+ * halves are read live on every call, and nothing is cached, matching the
+ * conditions module's posture exactly: `matchMedia()` reads state that changes
+ * with the viewport, the orientation, the color scheme, and a print preview,
+ * so a remembered answer is a report about a page that no longer exists. The
+ * same source list gated twice around a viewport change answers differently,
+ * which test/browser/source-gating.test.ts pins.
+ *
+ * The media half shares one path with `@media` evaluation rather than
+ * resembling it. A `media` attribute is turned into a single-entry
+ * `RuleContext` and handed to `isContextActive()`, so a `media="print"`
+ * attribute and a `@media print` ancestor are decided by the same call into
+ * the same engine. Two engine behaviors, pinned in headless Chromium
+ * 151.0.7922.34 rather than recalled, are what let that path stay free of
+ * special cases:
+ *
+ * - An absent `media` attribute and `media=""` both report `""` from the
+ *   `media` IDL attribute, and `matchMedia("").matches` is `true`, because an
+ *   empty query is the universal query. There is therefore no "no attribute
+ *   means all" branch here; the empty string goes through the same call a real
+ *   query does and comes back active.
+ * - A malformed attribute such as `media="not a real query"` makes a source
+ *   inactive, and the engine agrees twice over: the attached sheet reports its
+ *   media as `not all`, and the declarations do not reach an element. Media
+ *   Queries Level 4 section 3.1 requires the replacement by `not all`, and the
+ *   conditions module already pins the same answer from `matchMedia()`.
+ *
+ * ## The `disabled` surprise
+ *
+ * `disabled` means two different things on the two element kinds, and only
+ * one of them is the thing it looks like. Both were read off the engine
+ * (headless Chromium 151.0.7922.34) rather than recalled, because the recalled
+ * version of this is wrong:
+ *
+ * - On a `<link>`, `disabled` behaves as it reads. `<link rel="stylesheet"
+ *   disabled href="...">` reports `link.disabled === true`, and the engine
+ *   attaches no sheet at all: `link.sheet` is `null`. Setting the IDL property
+ *   back to `false` removes the content attribute and the sheet appears.
+ * - On a `<style>`, the content attribute does nothing whatsoever. HTML gives
+ *   `<style>` no `disabled` content attribute; the `disabled` IDL property it
+ *   does have is the one associated with its style sheet, so it reports the
+ *   sheet's state and not the markup's. `<style disabled>` therefore reports
+ *   `getAttribute("disabled") === ""` and `element.disabled === false`, with
+ *   `sheet.disabled === false`, and its declarations reach elements normally.
+ *   Assigning `element.disabled = true` does turn the sheet off, and it does
+ *   not write the attribute.
+ *
+ * The gate reads the `disabled` IDL property on both kinds, which is the
+ * honest signal: it is what the engine itself is acting on. Reading the
+ * content attribute instead would report a `<style disabled>` element, whose
+ * CSS the browser is applying to the page, as a source a scan should ignore,
+ * which is exactly the misreport this module exists to avoid. An author who
+ * meant to switch an inline stylesheet off has not switched it off, and a
+ * report that pretended otherwise would hide their bug rather than expose it.
+ *
+ * A raw source has no element, so neither question has an answer for it: it
+ * is never inactive. It is still excludable, because `exclude` matches URLs
+ * and a raw source has one.
+ *
+ * ## Exclusion by URL pattern
+ *
+ * `exclude` is a list of patterns matched against a source's full `url`
+ * string, including the `inline:` and `raw:` schemes synthesized for sources
+ * that were never fetched. A pattern can therefore remove an inline style
+ * element by its synthesized URL, and a caller who supplies a raw source and
+ * then excludes it gets what they asked for rather than a special case
+ * protecting them from themselves.
+ *
+ * The grammar is a hand-written subset of glob, with two wildcards and
+ * nothing else. Nothing is imported for it: no dependency outside the
+ * compiler's two parsers may be imported under `src/`, and the matcher is
+ * around twenty lines. It lives here rather than in `src/core` because
+ * exclusion exists only to serve source gating, and `src/core` holds what the
+ * compiler needs without a browser; it touches no DOM API, so its cases are
+ * pinned in the unit lane (test/unit/source-exclusion.test.ts) exactly as
+ * `acceptRawSources()`'s are.
+ *
+ * - `*` matches any run of characters except `/`, so it names files within
+ *   one directory.
+ * - `**` matches any run of characters including `/`, so it crosses
+ *   directories. Three or more consecutive stars read as `**`.
+ * - `?` is not a wildcard. The grammar the plan's own example needs is `*` and
+ *   `**`, a smaller grammar has fewer surprises, and a literal `?` is a
+ *   character URLs are full of: a query string starts with one, and
+ *   `**\/a.css?direct` should mean what it looks like it means.
+ * - Every other character is literal, including every regular expression
+ *   metacharacter. The pattern is translated to a `RegExp` with everything
+ *   escaped except the two wildcards, so `**\/a.css` matches `a.css` and not
+ *   `aXcss`, and a pattern is never a regular expression a caller can smuggle
+ *   in.
+ * - The match is anchored at both ends, so a pattern with no wildcard in it is
+ *   an exact URL match rather than a substring match. Substring matching was
+ *   rejected because it is quietly wrong in a case callers will hit:
+ *   `exclude: ["a.css"]` would also remove `extra.css`, since `a.css` is a
+ *   suffix of it. Anchoring costs a caller two characters, `**`, and buys them
+ *   a pattern that removes what they named.
+ *
+ * The plan's own example follows from those rules without a special case:
+ * `**\/design-system/**` matches any URL with a `/design-system/` path
+ * segment, at any depth, and does not match `/my-design-systems/`, because the
+ * slashes around the segment are literal.
  *
  * ## Reporting a failure
  *
@@ -370,6 +491,9 @@
 
 import { createDiagnostic } from "../../core/diagnostics/index.ts";
 import type { Diagnostic } from "../../core/diagnostics/index.ts";
+import type { RuleContext } from "../../core/compiler/rule-context.ts";
+
+import { isContextActive } from "../conditions/index.ts";
 
 /** The attribute an author sets to name a source. Read, never written. */
 export const SOURCE_IDENTITY_ATTRIBUTE = "data-css-console-source";
@@ -684,7 +808,7 @@ function disambiguate(base: string, taken: ReadonlySet<string>): string {
  * A scan passes a `Document`, where the distinction cannot arise.
  *
  * Every style element is returned, including disabled and print-media ones.
- * Gating is CSSC-027.
+ * `gateSources()` decides which of them a scan reads.
  */
 export function discoverStyleSources(
   root: Document | ParentNode,
@@ -768,8 +892,8 @@ function isStylesheetLink(link: HTMLLinkElement): boolean {
  * descendants only.
  *
  * Every stylesheet link is returned, including `disabled` and
- * `media="print"` ones, and including alternate stylesheets. Gating is
- * CSSC-027.
+ * `media="print"` ones, and including alternate stylesheets.
+ * `gateSources()` decides which of them a scan reads.
  */
 export function discoverLinkElements(root: Document | ParentNode): readonly HTMLLinkElement[] {
   return [...root.querySelectorAll("link")].filter((link) => isStylesheetLink(link));
@@ -951,4 +1075,171 @@ export async function loadLinkedSources(
   });
 
   return { sources, diagnostics };
+}
+
+/**
+ * Every regular expression metacharacter, so that a pattern's literal
+ * characters stay literal. The two wildcards are handled before this runs, so
+ * a `*` reaching it is one that was already consumed as text, which cannot
+ * happen; it stays in the class anyway, because a class that is not exactly
+ * the metacharacter set is a class that will be wrong the next time this is
+ * read.
+ */
+const REGEXP_METACHARACTERS = /[$()*+.?[\\\]^{|}]/gu;
+
+/** A pattern's literal run, escaped so that it matches only itself. */
+function escapeLiteral(text: string): string {
+  return text.replaceAll(REGEXP_METACHARACTERS, String.raw`\$&`);
+}
+
+/**
+ * Translates one exclude pattern into an anchored regular expression.
+ *
+ * The two wildcards are the only characters that survive translation as
+ * anything but themselves: `**` becomes `.*` under the `s` flag, so it crosses
+ * `/`, and a single `*` becomes `[^/]*`, so it does not. Anchoring at both
+ * ends is what makes a wildcard-free pattern an exact URL match rather than a
+ * substring match; see the module doc comment for why substring matching was
+ * rejected.
+ */
+function patternToRegExp(pattern: string): RegExp {
+  let source = "^";
+  let index = 0;
+
+  while (index < pattern.length) {
+    if (pattern[index] === "*") {
+      const start = index;
+
+      while (pattern[index] === "*") {
+        index += 1;
+      }
+
+      source += index - start > 1 ? ".*" : "[^/]*";
+      continue;
+    }
+
+    const next = pattern.indexOf("*", index);
+    const end = next === -1 ? pattern.length : next;
+
+    source += escapeLiteral(pattern.slice(index, end));
+    index = end;
+  }
+
+  return new RegExp(`${source}$`, "su");
+}
+
+/**
+ * True when one exclude pattern matches a source's URL.
+ *
+ * The grammar is `*` for any run of characters except `/`, `**` for any run
+ * including `/`, and literal text for everything else, matched against the
+ * whole URL. The module doc comment records the grammar in full, including
+ * why `?` is not a wildcard, why regular expression metacharacters in a
+ * pattern are literal, and why a pattern with no wildcard is an exact match.
+ *
+ * The URL is the source's own `url`, which for an inline style element or a
+ * raw source is the synthesized `inline:` or `raw:` one, so those are
+ * excludable by pattern like any other source.
+ *
+ * This function touches no DOM API, so it is exercised in the unit lane; it
+ * lives beside the gate that is its only caller.
+ */
+export function matchesUrlPattern(url: string, pattern: string): boolean {
+  return patternToRegExp(pattern).test(url);
+}
+
+/**
+ * True when the browser is reading this source at the moment of the call: it
+ * is not disabled, and its media applies.
+ *
+ * The media half is decided by `isContextActive()`, the same predicate that
+ * decides an `@media` ancestor, so a `media` attribute gates a source exactly
+ * as an `@media` ancestor would. An absent attribute and an empty one both
+ * arrive here as the empty string, which is the universal query and needs no
+ * branch of its own.
+ *
+ * The `disabled` half reads the IDL property rather than the content
+ * attribute, and the module doc comment records why that distinction is not a
+ * detail: on a `<style>` element the content attribute disables nothing at
+ * all, so a gate that read it would report a stylesheet the browser is
+ * applying as one a scan should ignore.
+ *
+ * A raw source carries no element, so it is always active. Nothing is cached:
+ * the answer is read live on every call, exactly as `isContextActive()` reads
+ * its own.
+ */
+export function isSourceActive(source: DiscoveredSource): boolean {
+  if (source.kind === "raw") {
+    return true;
+  }
+
+  if (source.element.disabled) {
+    return false;
+  }
+
+  const context: RuleContext = {
+    entries: [{ kind: "media", condition: source.element.media }],
+  };
+
+  return isContextActive(context);
+}
+
+/**
+ * The options `gateSources()` accepts.
+ *
+ * `exclude` is a list of URL patterns; a source whose `url` matches any one of
+ * them is excluded. See the module doc comment for the grammar.
+ */
+export type GateSourcesOptions = {
+  readonly exclude?: readonly string[];
+};
+
+/**
+ * What one gating pass decided, as three disjoint lists that together hold
+ * every source supplied, each in the order it was supplied.
+ *
+ * `active` is what a scan compiles. `inactive` is what the browser is not
+ * reading, which is a fact about the engine. `excluded` is what the caller
+ * asked not to consider, which is a policy the caller chose. The module doc
+ * comment records why the last two are separate buckets rather than one, and
+ * why exclusion wins for a source that is both.
+ */
+export type GatedSources = {
+  readonly active: readonly DiscoveredSource[];
+  readonly inactive: readonly DiscoveredSource[];
+  readonly excluded: readonly DiscoveredSource[];
+};
+
+/**
+ * Sorts every discovered source into the sources a scan compiles, the sources
+ * the browser is not reading, and the sources the caller excluded.
+ *
+ * Exclusion is checked first, so a source that is both excluded and inactive
+ * is reported as excluded: the caller's own decision is not a finding about
+ * the engine, and a summary that counted it as inactive would say the browser
+ * declined a stylesheet the caller withheld.
+ *
+ * Nothing is cached, so gating the same list twice around a viewport change
+ * answers differently; see the module doc comment.
+ */
+export function gateSources(
+  sources: readonly DiscoveredSource[],
+  options: GateSourcesOptions = {},
+): GatedSources {
+  const exclude = options.exclude ?? [];
+  const active: DiscoveredSource[] = [];
+  const inactive: DiscoveredSource[] = [];
+  const excluded: DiscoveredSource[] = [];
+
+  for (const source of sources) {
+    if (exclude.some((pattern) => matchesUrlPattern(source.url, pattern))) {
+      excluded.push(source);
+    } else if (isSourceActive(source)) {
+      active.push(source);
+    } else {
+      inactive.push(source);
+    }
+  }
+
+  return { active, inactive, excluded };
 }
