@@ -221,7 +221,7 @@ test("aborting during a pending load rejects the scan and delivers no summary", 
 
       // A fetch that respects the abort signal and otherwise never settles,
       // so the scan is reliably in flight when the abort fires.
-      const hanging: typeof globalThis.fetch = (input, init) =>
+      const hanging: typeof globalThis.fetch = (_input, init) =>
         new Promise((_resolve, reject) => {
           sawRequest();
           init?.signal?.addEventListener("abort", () => {

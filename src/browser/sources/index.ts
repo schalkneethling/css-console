@@ -704,15 +704,27 @@ export function diagnoseDuplicateIdentities(
 export type LoadLinkedSourcesOptions = {
   readonly fetch?: typeof globalThis.fetch;
   readonly signal?: AbortSignal;
+
+  /**
+   * URL patterns of links to exclude before anything is requested for them,
+   * in the grammar `matchesUrlPattern()` documents. Exclusion here rather
+   * than after loading is what makes the promise in the module doc comment
+   * true: the gate decides against a link before the network sees it, so an
+   * excluded stylesheet costs no request. The excluded elements come back in
+   * `excludedElements`, so a scan can count them without loading them.
+   */
+  readonly exclude?: readonly string[];
 };
 
 /**
  * What one load produced: a source per link that loaded, in document order,
- * and a diagnostic per URL that did not.
+ * a diagnostic per URL that did not, and the link elements that were
+ * excluded before any request was made for them.
  */
 export type LinkedSourceLoad = {
   readonly sources: readonly LinkedSource[];
   readonly diagnostics: readonly Diagnostic[];
+  readonly excludedElements: readonly HTMLLinkElement[];
 };
 
 /**
@@ -1036,13 +1048,22 @@ export async function loadLinkedSources(
   options: LoadLinkedSourcesOptions = {},
 ): Promise<LinkedSourceLoad> {
   const { signal } = options;
+  const exclude = options.exclude ?? [];
   // Bound to the global object, because `fetch()` throws when it is called
   // with a `this` that is not the window it came from.
   const request = options.fetch ?? globalThis.fetch.bind(globalThis);
 
   signal?.throwIfAborted();
 
-  const links = nameLinkElements(discoverLinkElements(root), identity);
+  const discovered = discoverLinkElements(root);
+  // Exclusion happens on the resolved URL before naming and before any
+  // request, so an excluded stylesheet costs no network traffic and no
+  // identity entry; the elements travel back so a scan can count them.
+  const excludedElements = discovered.filter((link) =>
+    exclude.some((pattern) => matchesUrlPattern(link.href, pattern)),
+  );
+  const included = discovered.filter((link) => !excludedElements.includes(link));
+  const links = nameLinkElements(included, identity);
   const urls = [...new Set(links.map((link) => link.url))];
 
   const outcomes = await Promise.all(urls.map((url) => loadOneUrl(url, request, signal)));
@@ -1074,7 +1095,7 @@ export async function loadLinkedSources(
       : [{ kind: "link-element", id: link.id, url: link.url, css, element: link.element } as const];
   });
 
-  return { sources, diagnostics };
+  return { sources, diagnostics, excludedElements };
 }
 
 /**
