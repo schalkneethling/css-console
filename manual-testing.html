@@ -1,0 +1,1467 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>css-console — Phase 2 manual testing</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #1a1a1a;
+        --muted: #59636e;
+        --border: #d1d9e0;
+        --surface: #f6f8fa;
+        --accent: #0757ba;
+        --pass: #1a7f37;
+        --warn: #9a6700;
+        --code-bg: #f0f2f5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --fg: #e6edf3;
+          --muted: #9198a1;
+          --border: #3d444d;
+          --surface: #151b23;
+          --accent: #4493f8;
+          --pass: #3fb950;
+          --warn: #d29922;
+          --code-bg: #1c2128;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0 auto;
+        max-width: 60rem;
+        padding: 2rem 1.25rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        line-height: 1.6;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.25;
+      }
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 0.25rem;
+      }
+      h2 {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 1.4rem;
+      }
+      h3 {
+        font-size: 1.05rem;
+        margin: 0;
+      }
+      p.lede {
+        color: var(--muted);
+        margin-top: 0;
+      }
+      code,
+      pre,
+      textarea,
+      .mono {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.85em;
+      }
+      code {
+        background: var(--code-bg);
+        border-radius: 4px;
+        padding: 0.1em 0.35em;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        overflow-x: auto;
+        line-height: 1.5;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: var(--surface);
+      }
+      .note {
+        border-left: 4px solid var(--warn);
+        background: var(--surface);
+        padding: 0.6rem 1rem;
+        border-radius: 0 8px 8px 0;
+        margin: 1rem 0;
+      }
+      .scenario {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin: 1.25rem 0;
+        background: var(--surface);
+      }
+      .scenario > header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .scenario > header label {
+        margin-left: auto;
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+        white-space: nowrap;
+        color: var(--muted);
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      .scenario .body {
+        padding: 0.75rem 1rem 1rem;
+      }
+      .scenario pre {
+        margin: 0.5rem 0;
+      }
+      .scenario .expect {
+        border-left: 4px solid var(--pass);
+        background: var(--code-bg);
+        padding: 0.5rem 1rem;
+        border-radius: 0 8px 8px 0;
+        margin: 0.75rem 0 0;
+      }
+      .scenario .expect ul {
+        margin: 0.25rem 0;
+        padding-left: 1.25rem;
+      }
+      button {
+        font: inherit;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--accent);
+        padding: 0.3rem 0.9rem;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      #playground {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem;
+        background: var(--surface);
+      }
+      #playground textarea {
+        width: 100%;
+        min-height: 9rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        padding: 0.6rem;
+        resize: vertical;
+      }
+      #playground .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        margin: 0.75rem 0;
+      }
+      #playground label.field {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      #playground input[type="number"] {
+        font: inherit;
+        width: 5.5rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        padding: 0.25rem 0.5rem;
+      }
+      #stage {
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        min-height: 2.5rem;
+        padding: 0.6rem;
+        background: var(--bg);
+      }
+      #events {
+        margin-top: 0.75rem;
+      }
+      #events .event {
+        border: 1px solid var(--border);
+        border-left-width: 5px;
+        border-radius: 6px;
+        background: var(--bg);
+        padding: 0.35rem 0.75rem;
+        margin: 0.35rem 0;
+        font-size: 0.85rem;
+      }
+      #events .event.record {
+        border-left-color: var(--pass);
+      }
+      #events .event.diagnostic {
+        border-left-color: var(--warn);
+      }
+      #events .event.probe-start,
+      #events .event.probe-summary {
+        border-left-color: var(--accent);
+      }
+      #events .kind {
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+      .contested {
+        color: var(--warn);
+        font-weight: 600;
+      }
+      .offline-note {
+        display: none;
+      }
+      body.offline .offline-note {
+        display: block;
+      }
+      body.offline #playground .live-only {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      .toc ol {
+        columns: 2;
+        gap: 2rem;
+      }
+      @media (max-width: 40rem) {
+        .toc ol {
+          columns: 1;
+        }
+      }
+      footer {
+        margin-top: 4rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      @media print {
+        #playground,
+        button {
+          display: none;
+        }
+        .scenario {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>css-console — Phase 2 manual testing</h1>
+    <p class="lede">
+      A hands-on checklist for the real-browser evaluator that landed with CSSC-017 through
+      CSSC-023: condition evaluation, selector matching, resolved value reading, function probes,
+      the contested guard, match limits, and the normalized event stream.
+    </p>
+
+    <h2 id="how">How to use this document</h2>
+    <p>
+      The project has no public runtime entry point yet: <code>createCSSConsole()</code> is
+      CSSC-028, and the console adapter is Phase 4. Until then, the pipeline is exercised by
+      composing <code>compileSource()</code> with <code>evaluateSource()</code>, which is exactly
+      what this page does. It works in two modes:
+    </p>
+    <ul>
+      <li>
+        <strong>Live mode.</strong> Serve the project and open this file through the dev server. The
+        playground below then imports the modules straight from <code>src/</code> and runs real
+        scans against fixtures on this page:
+        <pre><code>vp dev
+# then open http://localhost:5173/manual-testing.html</code></pre>
+      </li>
+      <li>
+        <strong>Reading mode.</strong> Opened directly from disk, the playground disables itself and
+        the document reads as a plain checklist. Every scenario carries its own CSS, markup, and
+        expected outcome, so it can also be reproduced in a scratch browser-lane test under
+        <code>test/browser/</code>.
+      </li>
+    </ul>
+    <div class="note">
+      Every expected value in this document was pinned against
+      <strong>headless Chromium 151.0.7922.34</strong>, the engine the browser test lane runs.
+      Chrome of a similar version should agree. Firefox and Safari will differ where noted, and
+      observing those differences is itself useful manual testing; the most visible one is that
+      <code>@function</code> probes evaluate only where <code>CSSFunctionRule</code> exists. Each
+      scenario has a checkbox; ticks persist in this browser's <code>localStorage</code>.
+    </div>
+
+    <nav class="toc">
+      <ol>
+        <li><a href="#playground-h">The playground</a></li>
+        <li><a href="#s-basics">Value probe basics</a></li>
+        <li><a href="#s-diagnostics">Compilation diagnostics</a></li>
+        <li><a href="#s-conditions">Conditions</a></li>
+        <li><a href="#s-selectors">Selector branches</a></li>
+        <li><a href="#s-pseudo">Pseudo-elements</a></li>
+        <li><a href="#s-values">Resolved values</a></li>
+        <li><a href="#s-guard">The contested guard</a></li>
+        <li><a href="#s-functions">Function probes</a></li>
+        <li><a href="#s-limits">Match limits</a></li>
+        <li><a href="#s-stream">The event stream</a></li>
+        <li><a href="#s-negatives">Known false negatives</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="playground-h">The playground</h2>
+    <p class="offline-note note">
+      This page is not being served by the dev server, so the playground is disabled. Run
+      <code>vp dev</code> and open <code>http://localhost:5173/manual-testing.html</code> to use it.
+    </p>
+    <div id="playground">
+      <div class="row">
+        <span id="env" class="mono">detecting environment…</span>
+      </div>
+      <label class="field" style="display: block">
+        <strong>CSS source</strong> (annotations included)
+        <textarea id="css" spellcheck="false"></textarea>
+      </label>
+      <label class="field" style="display: block; margin-top: 0.75rem">
+        <strong>Fixture markup</strong> (mounted on the stage below)
+        <textarea id="markup" spellcheck="false" style="min-height: 5rem"></textarea>
+      </label>
+      <div class="row live-only">
+        <label class="field"
+          >maxElements <input id="max" type="number" value="50" min="0" step="1"
+        /></label>
+        <button class="primary" id="run">Run scan</button>
+        <button id="run-delayed" title="For hover and interaction scenarios">Run in 3 s</button>
+        <button id="clear">Clear output</button>
+        <label class="field"><input type="checkbox" id="raw" /> show raw JSON</label>
+      </div>
+      <p style="margin: 0.5rem 0 0.25rem"><strong>Stage</strong> (live fixture)</p>
+      <div id="stage"></div>
+      <div id="events"></div>
+      <pre id="raw-out" hidden></pre>
+    </div>
+    <p>
+      Every scenario below has a <em>Load</em> button that fills the playground; press
+      <em>Run scan</em> to evaluate. The scan waits two animation frames after mounting the fixture,
+      so declared animations are running when the guard reads them. The stage stays mounted after a
+      run so the elements can be inspected in devtools.
+    </p>
+
+    <h2 id="s-basics">1. Value probe basics</h2>
+
+    <div class="scenario" data-id="basics-record">
+      <header>
+        <h3>1.1 One annotation produces one record</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.solo { color: rgb(1, 2, 3); }</code></pre>
+        <pre class="markup"><code>&lt;p class="solo"&gt;probe me&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Event order: <code>probe-start</code>, <code>record</code>,
+              <code>probe-summary</code>.
+            </li>
+            <li>
+              The record's <code>color</code> resolves to <code>rgb(1, 2, 3)</code>, authored value
+              preserved.
+            </li>
+            <li>Guard: <code>contested: false</code>, no reasons.</li>
+            <li>
+              Summary: 1 record, 0 diagnostics, matches
+              <code>{ total: 1, evaluated: 1, omitted: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="basics-label">
+      <header>
+        <h3>1.2 Labels ride on starts and records; absence is an absent key</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color label="branded" */
+.tagged { color: rgb(9, 9, 9); }
+
+/* css-console: log color */
+.plain { color: rgb(8, 8, 8); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="tagged"&gt;&lt;/p&gt;&lt;p class="plain"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>The first probe-start and record carry <code>label: "branded"</code>.</li>
+            <li>
+              The second probe's events have no <code>label</code> key at all (check the raw JSON:
+              the key is absent, not <code>undefined</code>).
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-diagnostics">2. Compilation diagnostics</h2>
+
+    <div class="scenario" data-id="diag-missing">
+      <header>
+        <h3>2.1 A requested property the rule does not declare</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color,ghost */
+.card { color: rgb(4, 5, 6); }</code></pre>
+        <pre class="markup"><code>&lt;p class="card"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              A <code>MISSING_REQUESTED_PROPERTY</code> diagnostic arrives <em>before</em> any probe
+              event.
+            </li>
+            <li>The probe still runs and reports <code>color</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-conditions">3. Conditions</h2>
+
+    <div class="scenario" data-id="cond-inactive">
+      <header>
+        <h3>3.1 An inactive probe still has boundaries</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>@media (min-width: 100000px) {
+  /* css-console: log color */
+  .unreachable { color: rgb(1, 1, 1); }
+}</code></pre>
+        <pre class="markup"><code>&lt;p class="unreachable"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              <code>probe-start</code> and <code>probe-summary</code> are emitted, with zero records
+              and matches <code>{ total: 0, evaluated: 0, omitted: 0 }</code>.
+            </li>
+            <li>No record events: the condition never holds in any real viewport.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="cond-live">
+      <header>
+        <h3>3.2 Conditions are read live, never cached</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>@media (min-width: 600px) {
+  /* css-console: log color */
+  .responsive { color: rgb(2, 2, 2); }
+}</code></pre>
+        <pre class="markup"><code>&lt;p class="responsive"&gt;&lt;/p&gt;</code></pre>
+        <p>
+          <strong>Steps:</strong> run the scan with the window wider than 600px, then resize the
+          window below 600px and run again without reloading.
+        </p>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>Wide window: one record. Narrow window: zero-count boundaries only.</li>
+            <li>
+              The answer follows the viewport at the moment of each scan; nothing is remembered from
+              the previous run.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="cond-layer">
+      <header>
+        <h3>3.3 @layer never gates, @supports does</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>@layer base {
+  @supports (display: grid) {
+    /* css-console: log color */
+    .layered { color: rgb(3, 3, 3); }
+  }
+}
+
+@supports (display: not-a-value) {
+  /* css-console: log color */
+  .unsupported { color: rgb(4, 4, 4); }
+}</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="layered"&gt;&lt;/p&gt;&lt;p class="unsupported"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The <code>.layered</code> probe records: the layer is metadata, the supported
+              condition holds.
+            </li>
+            <li>
+              The <code>.unsupported</code> probe emits boundaries only: an unparseable or failing
+              supports condition is inactive.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-selectors">4. Selector branches</h2>
+
+    <div class="scenario" data-id="sel-unparseable">
+      <header>
+        <h3>4.1 A branch the engine refuses fails alone</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.valid-branch, .card:not-a-real-pseudo-class {
+  color: rgb(1, 2, 3);
+}</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="valid-branch"&gt;&lt;/p&gt;&lt;p class="card"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              An <code>UNPARSEABLE_SELECTOR_BRANCH</code> diagnostic (warning) naming the rejected
+              branch, carrying the rule's source location, inside the probe's boundaries.
+            </li>
+            <li>
+              The <code>.valid-branch</code> element still produces a record: one bad branch never
+              silences its siblings in the matcher.
+            </li>
+            <li>
+              The reported color is the page's inherited color, not <code>rgb(1, 2, 3)</code> — the
+              live engine drops a style rule whose selector list contains a branch it cannot parse,
+              so the annotated declaration never applied, and the record reports that truthfully.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="sel-descendant">
+      <header>
+        <h3>4.2 A pseudo-element after a combinator matches the right elements</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.card ::before {
+  color: rgb(1, 2, 3);
+}</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;article class="card"&gt;&lt;span id="child"&gt;child&lt;b id="grandchild"&gt;grandchild&lt;/b&gt;&lt;/span&gt;&lt;/article&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Records target the descendants (<code>#child</code>, <code>#grandchild</code>), never
+              the <code>.card</code> ancestor: <code>.card ::before</code> means
+              <code>.card *::before</code>.
+            </li>
+            <li>
+              No diagnostics. The same holds for <code>.card &gt; ::before</code>, which matches
+              only <code>#child</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-pseudo">5. Pseudo-elements</h2>
+
+    <div class="scenario" data-id="pseudo-before">
+      <header>
+        <h3>5.1 A ::before probe reads the pseudo-element's own values</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log content,color,width */
+.decorated::before { content: "hi"; color: rgb(4, 5, 6); width: 30px; }</code></pre>
+        <pre class="markup"><code>&lt;p class="decorated" id="origin"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>One record targeting <code>#origin</code> with <code>pseudo: "::before"</code>.</li>
+            <li>
+              <code>content</code> is <code>"hi"</code>, <code>color</code> is
+              <code>rgb(4, 5, 6)</code>, and <code>width</code> is <code>30px</code>: the
+              pseudo-element's values, not the element's. <code>content</code> is an ordinary
+              property here — when it computes to <code>none</code>, no box is generated and the
+              other properties still report their computed values.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="pseudo-placeholder">
+      <header>
+        <h3>5.2 ::placeholder degrades without a placeholder — a recorded engine quirk</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.host::placeholder { color: rgb(2, 2, 2); }
+.host { color: rgb(1, 1, 1); }</code></pre>
+        <pre class="markup"><code>&lt;input class="host" placeholder="hi"&gt;
+&lt;input class="host"&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>The input <em>with</em> a placeholder reports <code>rgb(2, 2, 2)</code>.</li>
+            <li>
+              The input <em>without</em> one reports <code>rgb(1, 1, 1)</code> — the element's own
+              color, silently attributed to <code>::placeholder</code> by the engine. This is the
+              one exception among the eight supported pseudo-elements and it is documented in the
+              evaluator, not worked around.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-values">6. Resolved values</h2>
+
+    <div class="scenario" data-id="values-resolution">
+      <header>
+        <h3>6.1 The engine resolves; the tool reports</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log width,height,margin-top,color */
+.resolved {
+  width: calc(100px + 50px);
+  height: clamp(10px, 500px, 100px);
+  margin-top: clamp(10px, 50px, 100px);
+  color: color-mix(in srgb, red 50%, blue);
+}</code></pre>
+        <pre class="markup"><code>&lt;p class="resolved"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              <code>width</code> → <code>150px</code>, <code>height</code> →
+              <code>100px</code> (high bound), <code>margin-top</code> → <code>50px</code>.
+            </li>
+            <li><code>color</code> → <code>color(srgb 0.5 0 0.5)</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="values-none">
+      <header>
+        <h3>6.2 display: none falls back to computed values</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log width,margin-left */
+.hidden-box { display: none; width: auto; margin-left: 25%; }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;div style="width: 300px"&gt;&lt;p class="hidden-box"&gt;&lt;/p&gt;&lt;/div&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              <code>width</code> reports <code>auto</code> and <code>margin-left</code> reports
+              <code>25%</code>: with no box, resolved values fall back to computed values, and a
+              percentage stays a percentage.
+            </li>
+            <li>
+              Remove <code>display: none</code> and re-run: <code>margin-left</code> resolves to
+              <code>75px</code> (25% of the 300px containing block) and <code>width</code> reports
+              <code>225px</code>. A used <code>width: auto</code> on a block box is the containing
+              block minus margins, borders, and padding, so the margin claims its 75px first.
+              <code>box-sizing</code> plays no part here, because it only changes how a specified
+              width maps onto the box, and this width is <code>auto</code>. Delete the margin
+              declaration too and <code>width</code> reports the full <code>300px</code>, which is
+              the shape the evaluator suite pins.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="values-custom">
+      <header>
+        <h3>6.3 Custom properties: declared, empty, and never declared</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log --brand,--declared-empty,--never-declared */
+.branded { --brand: oklch(55% 0.18 250); --declared-empty: ; color: red; }</code></pre>
+        <pre class="markup"><code>&lt;p class="branded"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li><code>--brand</code> reports its declared value verbatim.</li>
+            <li>
+              <code>--declared-empty</code> reports the empty string — an honest report of what the
+              engine computes for a declared-empty custom property.
+            </li>
+            <li>
+              <code>--never-declared</code> does not appear in the record at all: a
+              <code>MISSING_REQUESTED_PROPERTY</code> diagnostic flags it at compile time, and the
+              probe carries only the properties the rule declares.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-guard">7. The contested guard</h2>
+    <p>
+      The guard answers one question per probed property and element: could something other than the
+      annotated declaration be responsible for the reported value? It fires reasons as facts and
+      never ranks, counts, or locates competitors.
+    </p>
+    <p>
+      Expect the reasons to be facts about the probed box, never pointers to competitors: the guard
+      will not say <em>which</em> declaration competes, how many do, or who wins, and ten
+      competitors produce the same reasons array as one. That restraint is the design
+      (docs/decisions/0004-guard-as-guard-not-cascade-feature.md): any identification is a claim
+      about the cascade, page JavaScript cannot fully make that claim — user-agent stylesheets,
+      presentational hints, and origin ordering are not observable from script — and a partially
+      correct claim is worse than a handoff. The handoff is the remediation: every record carries
+      the live matched element as its <code>target</code>, one click from the devtools cascade
+      panel, which can see everything and does name the winner. Each reason is independent, so an
+      important competitor fires <code>competing-declaration</code> and <code>important</code> as
+      two facts, with neither attributing the value to anyone.
+    </p>
+
+    <div class="scenario" data-id="guard-competing">
+      <header>
+        <h3>7.1 competing-declaration, and important beside it</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.card { color: red; }
+.other { color: blue !important; }</code></pre>
+        <pre class="markup"><code>&lt;p class="card other"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Guard reasons: <code>competing-declaration</code> and <code>important</code> — two
+              facts, both reported.
+            </li>
+            <li>
+              Drop <code>!important</code> and re-run: only
+              <code>competing-declaration</code> remains.
+            </li>
+            <li>
+              Also try a shorthand competitor (<code>.other { margin: 0 }</code> against a probed
+              <code>margin-left</code>) and <code>all: initial</code>: both compete.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-inline">
+      <header>
+        <h3>7.2 inline-style, with importance carried</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.card { color: red; }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="card" style="color: blue !important"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>Guard reasons: <code>inline-style</code> and <code>important</code>.</li>
+            <li>
+              Without <code>!important</code>: <code>inline-style</code> alone. An inline style on
+              an unrelated property fires nothing.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-writing-mode">
+      <header>
+        <h3>7.3 Logical competition follows the element's flow</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log inline-size */
+.card { inline-size: 5px; }
+.wide { width: 7px; }</code></pre>
+        <pre class="markup"><code>&lt;p class="card wide"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Horizontal writing mode: <code>width</code> addresses the same physical longhand as
+              <code>inline-size</code>, so <code>competing-declaration</code> fires.
+            </li>
+            <li>
+              Add <code>.card { writing-mode: vertical-rl; }</code> to the fixture and re-run: the
+              guard goes silent, because <code>inline-size</code> now maps to <code>height</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-animation">
+      <header>
+        <h3>7.4 animation-or-transition, on the element and on its pseudo-element</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log margin-left */
+.card { margin-left: 0px; animation: slide 100s linear; }
+
+@keyframes slide { from { margin-left: 0px; } to { margin-left: 300px; } }</code></pre>
+        <pre class="markup"><code>&lt;p class="card"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Guard reason: <code>animation-or-transition</code> (the scan waits a frame, so the
+              animation is running).
+            </li>
+            <li>
+              Move the <code>animation</code> into a <code>.card::before</code> rule, add
+              <code>content: ""</code> beside it, and probe the pseudo-element: the reason follows
+              the probed box, firing for the <code>::before</code> probe and staying silent for the
+              element's own probe.
+            </li>
+            <li>
+              The <code>content</code> declaration is load-bearing, not decoration. Without it the
+              pseudo-element generates no box, and an animation on a boxless pseudo-element never
+              runs: <code>getAnimations({ subtree: true })</code> returns nothing for it, and the
+              reported <code>margin-left</code> stays at its static value. The guard's silence there
+              is the honest answer — the value really did not come from an animation.
+            </li>
+            <li>An animation on an unrelated property fires nothing.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-unresolved">
+      <header>
+        <h3>7.5 unresolved-variable, in all its shapes</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.a { color: var(--missing); }
+
+/* css-console: log color */
+.b { color: VAR(--missing); }
+
+/* css-console: log color */
+.c { color: var(--missing, red); }
+
+/* css-console: log color */
+.d { color: var(--missing, 10px); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="a"&gt;&lt;/p&gt;&lt;p class="b"&gt;&lt;/p&gt;&lt;p class="c"&gt;&lt;/p&gt;&lt;p class="d"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              <code>.a</code> fires <code>unresolved-variable</code>; <code>.b</code> fires it
+              identically, because CSS function names are case-insensitive.
+            </li>
+            <li><code>.c</code> stays silent: a valid fallback saves the declaration.</li>
+            <li>
+              <code>.d</code> fires: <code>10px</code> is not a valid color, so the consulted
+              fallback fails the destination.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-pseudo-var">
+      <header>
+        <h3>7.6 A pseudo-element's own custom property resolves without a false alarm</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <p>
+          Custom properties cascade per element and pseudo-element pair, so a
+          <code>--tone</code> declared only inside the <code>::before</code> rule exists for the
+          pseudo-element and is absent from the originating element. The guard resolves references
+          against the same computed declaration the reported values came from, so asking the wrong
+          box here would fire <code>unresolved-variable</code> for a reference the engine resolved.
+        </p>
+        <pre class="css"><code>/* css-console: log color */
+.decorated::before {
+  content: "";
+  --tone: rgb(0, 128, 0);
+  color: var(--tone);
+}</code></pre>
+        <pre class="markup"><code>&lt;p class="decorated"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The record reports <code>color: rgb(0, 128, 0)</code>, uncontested: the reference
+              resolved on the <code>::before</code> declaration, even though
+              <code>getPropertyValue("--tone")</code> on the element itself answers the empty
+              string.
+            </li>
+            <li>
+              Delete the <code>--tone</code> declaration, keep the <code>var(--tone)</code>
+              reference, and re-run: now the reference genuinely fails and
+              <code>unresolved-variable</code> fires.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="guard-box">
+      <header>
+        <h3>7.7 Box alignment: pseudo-element probes compete per box</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color */
+.decorated::before { content: ""; color: red; }
+.other::before { color: blue; }
+.decorated { color: green; }</code></pre>
+        <pre class="markup"><code>&lt;p class="decorated other"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Guard reason: <code>competing-declaration</code>, fired by
+              <code>.other::before</code> — a rule on the <em>same</em> pseudo-element box. An
+              element has exactly one <code>::before</code>, so every matching
+              <code>::before</code> rule cascades into that one box; the reported color is in fact
+              blue, because the competitor wins on source order at equal specificity, which is
+              exactly the situation the guard exists to flag.
+            </li>
+            <li>
+              The competitor needs no <code>content</code> of its own — and neither rule does:
+              delete both <code>content</code> declarations and the guard still fires, with the
+              boxless <code>::before</code> still reporting the cascaded blue. Box generation gates
+              rendering and animation playback (see 7.4), never the cascade or the computed values.
+            </li>
+            <li>
+              Remove the <code>.other::before</code> rule and re-run: silence. The element's own
+              <code>color: green</code> never competes with the <code>::before</code> box, which it
+              reaches only through inheritance.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-functions">8. Function probes</h2>
+
+    <div class="scenario" data-id="fn-basics">
+      <header>
+        <h3>8.1 An annotated @function reports its call sites</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log */
+@function --space(--n) { result: calc(var(--n) * 8px); }
+
+.card { padding-top: --space(2); }
+.panel { margin-top: --space(3); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="card"&gt;&lt;/p&gt;&lt;p class="panel"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One probe-start (<code>probeKind: "function"</code>, naming <code>--space</code>),
+              then one record per call site.
+            </li>
+            <li>
+              The <code>.card</code> record reports <code>padding-top</code> resolved to
+              <code>16px</code>, the <code>.panel</code> record <code>margin-top</code> to
+              <code>24px</code> — always the destination property's resolved value, never the bare
+              return value.
+            </li>
+            <li>
+              Each record's call site carries <code>soleContribution: true</code> here; wrap a call
+              as <code>calc(--space(2) + 1px)</code> and it flips to <code>false</code>.
+            </li>
+            <li>
+              In a browser without <code>CSSFunctionRule</code> (Firefox, Safari at the time of
+              writing), the probe reports nothing rather than guessing — worth verifying there too.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-limits">9. Match limits</h2>
+
+    <div class="scenario" data-id="limits-value">
+      <header>
+        <h3>9.1 Truncation keeps document order and the true totals</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <p>Set <strong>maxElements</strong> to <code>3</code> before running.</p>
+        <pre class="css"><code>/* css-console: log color */
+.item { color: rgb(1, 2, 3); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;li class="item" id="first"&gt;&lt;/li&gt;&lt;li class="item" id="second"&gt;&lt;/li&gt;&lt;li class="item" id="third"&gt;&lt;/li&gt;&lt;li class="item" id="fourth"&gt;&lt;/li&gt;&lt;li class="item" id="fifth"&gt;&lt;/li&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Exactly 3 records, targeting <code>#first</code>, <code>#second</code>,
+              <code>#third</code> in document order.
+            </li>
+            <li>
+              Summary matches: <code>{ total: 5, evaluated: 3, omitted: 2 }</code> — nothing about
+              the page is hidden by the limit.
+            </li>
+            <li>
+              <code>maxElements: 0</code> evaluates nothing while still counting
+              <code>total: 5</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="limits-fn">
+      <header>
+        <h3>9.2 A function probe spends one budget across call sites</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <p>Set <strong>maxElements</strong> to <code>4</code> before running.</p>
+        <pre class="css"><code>/* css-console: log */
+@function --pad(--n) { result: calc(var(--n) * 1px); }
+
+.first { padding-top: --pad(1); }
+.second { margin-top: --pad(2); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="first"&gt;&lt;/p&gt;&lt;p class="first"&gt;&lt;/p&gt;&lt;p class="first"&gt;&lt;/p&gt;&lt;p class="second"&gt;&lt;/p&gt;&lt;p class="second"&gt;&lt;/p&gt;&lt;p class="second"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              4 records: three for the first call site, one for the second — the budget is
+              probe-wide, not per call site.
+            </li>
+            <li>Summary matches: <code>{ total: 6, evaluated: 4, omitted: 2 }</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-stream">10. The event stream</h2>
+
+    <div class="scenario" data-id="stream-order">
+      <header>
+        <h3>10.1 Ordering, determinism, and the read-only guarantee</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="css"><code>/* css-console: log color,ghost */
+.first-probe { color: rgb(1, 1, 1); }
+
+/* css-console: log color */
+.second-probe { color: rgb(2, 2, 2); }</code></pre>
+        <pre
+          class="markup"
+        ><code>&lt;p class="first-probe"&gt;&lt;/p&gt;&lt;p class="second-probe"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Compilation diagnostics come first, then each probe's <code>probe-start</code> →
+              records → <code>probe-summary</code>, in authored order.
+            </li>
+            <li>
+              Run twice: the <code>probeId</code> values and the event order are identical across
+              runs.
+            </li>
+            <li>Timestamps never decrease within a run.</li>
+            <li>
+              Inspect the stage in devtools before and after a run: the markup is untouched — every
+              engine call the pipeline makes is a read.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-negatives">11. Known false negatives — expect silence here</h2>
+    <p>
+      Three guard misses are recorded decisions, not defects. Verifying them means confirming the
+      guard stays <em>silent</em>:
+    </p>
+    <table>
+      <tr>
+        <th>Fixture</th>
+        <th>Why the guard cannot see it</th>
+      </tr>
+      <tr>
+        <td>
+          A competitor inside <code>@container</code>, <code>@scope</code>, or
+          <code>@starting-style</code>
+        </td>
+        <td>
+          Those at-rules cannot be honestly probed, so their declarations never enter the guard
+          index.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          A keyframes animation on a custom property (registered through <code>@property</code> or
+          not)
+        </td>
+        <td>
+          <code>getKeyframes()</code> in Chromium 151 omits custom properties from its keyframe
+          objects, even when the property animates as a typed interpolation.
+        </td>
+      </tr>
+      <tr>
+        <td>A competitor whose selector the engine cannot parse</td>
+        <td>
+          <code>matches()</code> throws on it, and a selector the engine cannot evaluate is a
+          selector the engine cannot be applying.
+        </td>
+      </tr>
+    </table>
+    <p>
+      One neighboring scope decision: a <code>var()</code> reference whose variable is
+      <em>set</em> clears <code>unresolved-variable</code> even when the set value is invalid for
+      the destination. The reason is about references that fail, not values that disappoint.
+    </p>
+
+    <footer>
+      <p>
+        Generated for the Phase 2 checkpoint (CSSC-017 – CSSC-023). Expected values pinned against
+        headless Chromium 151.0.7922.34; the authoritative pins live in
+        <code>test/browser/</code>. The public runtime (<code>createCSSConsole()</code>, CSSC-028)
+        and the console adapter (Phase 4) are not covered here because they do not exist yet.
+      </p>
+      <p><button id="reset-ticks">Reset all checkboxes</button></p>
+    </footer>
+
+    <script type="module">
+      const STORAGE_PREFIX = "css-console-manual:";
+
+      for (const scenario of document.querySelectorAll(".scenario")) {
+        const id = scenario.dataset.id;
+        const tick = scenario.querySelector(".tick");
+
+        tick.checked = localStorage.getItem(STORAGE_PREFIX + id) === "true";
+        tick.addEventListener("change", () => {
+          localStorage.setItem(STORAGE_PREFIX + id, String(tick.checked));
+        });
+
+        scenario.querySelector(".load")?.addEventListener("click", () => {
+          const css = scenario.querySelector("pre.css code")?.textContent ?? "";
+          const markup = scenario.querySelector("pre.markup code")?.textContent ?? "";
+
+          document.getElementById("css").value = css;
+          document.getElementById("markup").value = markup;
+          document.getElementById("playground").scrollIntoView({ behavior: "smooth" });
+        });
+      }
+
+      document.getElementById("reset-ticks").addEventListener("click", () => {
+        for (const key of Object.keys(localStorage)) {
+          if (key.startsWith(STORAGE_PREFIX)) {
+            localStorage.removeItem(key);
+          }
+        }
+
+        for (const tick of document.querySelectorAll(".tick")) {
+          tick.checked = false;
+        }
+      });
+
+      const env = document.getElementById("env");
+      let modules = null;
+
+      if (location.protocol === "file:") {
+        document.body.classList.add("offline");
+        env.textContent = "reading mode (file://) — playground disabled";
+      } else {
+        try {
+          const [compiler, records, evaluator] = await Promise.all([
+            import("/src/core/compiler/index.ts"),
+            import("/src/browser/records/index.ts"),
+            import("/src/browser/evaluator/index.ts"),
+          ]);
+
+          modules = {
+            compileSource: compiler.compileSource,
+            evaluateSource: records.evaluateSource,
+          };
+          env.textContent =
+            "live mode — " +
+            navigator.userAgent.replace(
+              /^.*?(Chrome\/[\d.]+|Firefox\/[\d.]+|Version\/[\d.]+ Safari).*$/,
+              "$1",
+            ) +
+            (evaluator.supportsCustomFunctions()
+              ? " — CSSFunctionRule available, function probes evaluate"
+              : " — no CSSFunctionRule, function probes report nothing");
+        } catch (error) {
+          document.body.classList.add("offline");
+          env.textContent = "module import failed — serve this page with vp dev (" + error + ")";
+        }
+      }
+
+      const stage = document.getElementById("stage");
+      const eventsOut = document.getElementById("events");
+      const rawOut = document.getElementById("raw-out");
+      let fixtureStyle = null;
+
+      function elementSummary(element) {
+        if (!(element instanceof Element)) {
+          return String(element);
+        }
+
+        const id = element.id ? "#" + element.id : "";
+        const classes = element.classList.length ? "." + [...element.classList].join(".") : "";
+
+        return "<" + element.tagName.toLowerCase() + id + classes + ">";
+      }
+
+      function describe(event) {
+        if (event.kind === "diagnostic") {
+          const where = event.diagnostic.source
+            ? " @ line " + event.diagnostic.source.start.line
+            : "";
+          const details = event.diagnostic.details
+            ? " — " +
+              Object.entries(event.diagnostic.details)
+                .map(([key, value]) => key + ": " + JSON.stringify(value))
+                .join(", ")
+            : "";
+
+          return event.diagnostic.code + where + details;
+        }
+
+        if (event.kind === "probe-start") {
+          const probe = event.probe;
+          const name = probe.probeKind === "value" ? probe.selector : probe.functionName;
+
+          return probe.probeKind + " probe " + name + (probe.label ? " [" + probe.label + "]" : "");
+        }
+
+        if (event.kind === "probe-summary") {
+          const matches = event.summary.matches;
+
+          return (
+            event.summary.records +
+            " record(s), " +
+            event.summary.diagnostics +
+            " diagnostic(s), matches { total: " +
+            matches.total +
+            ", evaluated: " +
+            matches.evaluated +
+            ", omitted: " +
+            matches.omitted +
+            " }"
+          );
+        }
+
+        if (event.kind === "record") {
+          const record = event.record;
+          const target = elementSummary(record.target) + (record.pseudo ?? "");
+
+          if (record.kind === "function") {
+            return (
+              "function " +
+              record.functionName +
+              " → " +
+              record.callSite.property +
+              ": " +
+              record.resolved +
+              " on " +
+              target +
+              guardText(record.guard)
+            );
+          }
+
+          const values = record.values
+            .map((value) => value.name + ": " + value.resolved + guardText(value.guard))
+            .join("; ");
+
+          return record.kind + " " + target + " — " + values;
+        }
+
+        return JSON.stringify(event);
+      }
+
+      function guardText(guard) {
+        if (!guard) {
+          return "";
+        }
+
+        return guard.contested
+          ? " ⚠ contested [" + guard.reasons.join(", ") + "]"
+          : " ✓ uncontested";
+      }
+
+      async function runScan() {
+        if (modules === null) {
+          return;
+        }
+
+        const css = document.getElementById("css").value;
+        const markup = document.getElementById("markup").value;
+        const maxElements = Number(document.getElementById("max").value);
+
+        eventsOut.innerHTML = '<div class="event">running…</div>';
+        rawOut.textContent = "";
+
+        fixtureStyle?.remove();
+        fixtureStyle = document.createElement("style");
+        fixtureStyle.textContent = css;
+        document.head.append(fixtureStyle);
+        stage.innerHTML = markup;
+
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const compiled = modules.compileSource(css, {
+          url: "https://manual-testing.invalid/playground.css",
+        });
+        const events = modules.evaluateSource(compiled, { root: stage, maxElements });
+
+        eventsOut.innerHTML = "";
+
+        for (const event of events) {
+          const line = document.createElement("div");
+
+          line.className = "event " + event.kind;
+          line.innerHTML = '<span class="kind">' + event.kind + "</span>";
+          line.append(describe(event));
+
+          if (event.kind === "record") {
+            const guards =
+              event.record.kind === "function"
+                ? [event.record.guard]
+                : event.record.values.map((value) => value.guard);
+
+            if (guards.some((guard) => guard?.contested)) {
+              line.querySelector(".kind").classList.add("contested");
+            }
+          }
+
+          eventsOut.append(line);
+        }
+
+        if (events.length === 0) {
+          eventsOut.innerHTML =
+            '<div class="event">no events — did the source compile to any probes?</div>';
+        }
+
+        rawOut.hidden = !document.getElementById("raw").checked;
+        rawOut.textContent = JSON.stringify(
+          events,
+          (key, value) => (value instanceof Element ? elementSummary(value) : value),
+          2,
+        );
+      }
+
+      document.getElementById("run").addEventListener("click", runScan);
+      document.getElementById("run-delayed").addEventListener("click", () => {
+        setTimeout(runScan, 3000);
+      });
+      document.getElementById("clear").addEventListener("click", () => {
+        eventsOut.innerHTML = "";
+        rawOut.textContent = "";
+        stage.innerHTML = "";
+        fixtureStyle?.remove();
+      });
+      document.getElementById("raw").addEventListener("change", (event) => {
+        rawOut.hidden = !event.target.checked;
+      });
+    </script>
+  </body>
+</html>
