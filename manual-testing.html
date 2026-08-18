@@ -1230,13 +1230,32 @@
     <script type="module">
       const STORAGE_PREFIX = "css-console-manual:";
 
+      // Storage access can throw a SecurityError when the browser blocks it,
+      // and a throw here would abort the whole module before the environment
+      // detection runs. Ticks silently lose persistence instead.
+      function readStored(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      }
+
+      function writeStored(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // Storage is unavailable; the tick still works for this page view.
+        }
+      }
+
       for (const scenario of document.querySelectorAll(".scenario")) {
         const id = scenario.dataset.id;
         const tick = scenario.querySelector(".tick");
 
-        tick.checked = localStorage.getItem(STORAGE_PREFIX + id) === "true";
+        tick.checked = readStored(STORAGE_PREFIX + id) === "true";
         tick.addEventListener("change", () => {
-          localStorage.setItem(STORAGE_PREFIX + id, String(tick.checked));
+          writeStored(STORAGE_PREFIX + id, String(tick.checked));
         });
 
         scenario.querySelector(".load")?.addEventListener("click", () => {
@@ -1250,10 +1269,14 @@
       }
 
       document.getElementById("reset-ticks").addEventListener("click", () => {
-        for (const key of Object.keys(localStorage)) {
-          if (key.startsWith(STORAGE_PREFIX)) {
-            localStorage.removeItem(key);
+        try {
+          for (const key of Object.keys(localStorage)) {
+            if (key.startsWith(STORAGE_PREFIX)) {
+              localStorage.removeItem(key);
+            }
           }
+        } catch {
+          // Storage is unavailable, so there is nothing persisted to clear.
         }
 
         for (const tick of document.querySelectorAll(".tick")) {
@@ -1394,7 +1417,15 @@
 
         const css = document.getElementById("css").value;
         const markup = document.getElementById("markup").value;
-        const maxElements = Number(document.getElementById("max").value);
+        // Number("") is 0, so a cleared field would silently evaluate
+        // nothing. An explicit 0 stays valid, because evaluating no matches
+        // while counting all of them is a documented instruction (scenario
+        // 9.1); only an empty, non-integer, or negative field falls back to
+        // the shipped default of 50 (DEFAULT_MAX_ELEMENTS).
+        const maxField = document.getElementById("max").value.trim();
+        const parsedMax = Number(maxField);
+        const maxElements =
+          maxField === "" || !Number.isInteger(parsedMax) || parsedMax < 0 ? 50 : parsedMax;
 
         eventsOut.innerHTML = '<div class="event">running…</div>';
         rawOut.textContent = "";
