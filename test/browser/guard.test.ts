@@ -523,6 +523,7 @@ test("an animation on a boxless pseudo-element never runs, so the guard stays si
       }
 
       expect(element.getAnimations({ subtree: true })).toHaveLength(0);
+      expect(getComputedStyle(element, "::before").getPropertyValue("margin-left")).toBe("0px");
       expect(guardOf(host, css)).toEqual({ contested: false, reasons: [] });
     },
   );
