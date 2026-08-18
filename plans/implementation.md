@@ -932,7 +932,7 @@ Labels: `phase-2`, `browser`, `evaluator`
 
 The object returned by `getComputedStyle()` is live, so caching it caches nothing. Acquire the declaration once per element and pseudo-element pair, read all requested properties consecutively, and perform no DOM access between reads. Writing mode and direction come from the same declaration.
 
-Red cases: an ordinary property; `calc()` resolving to pixels; `clamp()` at and between its bounds; `color-mix()` resolving to a concrete color; a container unit resolving against its query container; an inherited property; a custom property; an empty custom property; a `::before` pseudo-element with generated content; a `::before` pseudo-element with no `content`, which returns computed values while generating no box; an element with `display: none`, where resolved values fall back to computed values and a length reports `auto`; property name normalization.
+Red cases: an ordinary property; `calc()` resolving to pixels; `clamp()` at and between its bounds; `color-mix()` resolving to a concrete color; a container unit resolving against its query container; an inherited property; a custom property; an empty custom property; a `::before` pseudo-element with generated content; a `::before` pseudo-element with no `content`, which returns computed values while generating no box; an element with `display: none`, where resolved values fall back to computed values: `width: auto` reports `auto`, but a percentage width reports the percentage rather than `auto`; property name normalization.
 
 ### CSSC-020 — Evaluate function probes
 
