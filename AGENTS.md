@@ -28,6 +28,29 @@ implementation and its tests encoded the same wrong assumption. The reviewer
 that caught it read `node_modules/postcss/lib/parser.js` at the pinned version
 and found the line that assigns `node.name`.
 
+## This project's own surfaces are sources too
+
+The rule is not only about dependencies. Anything this project defines, the
+annotation grammar, diagnostic codes, option shapes, event kinds, must be read
+from its defining module before it is written into an example, a document, a
+fixture, or a test. Recalling a syntax you helped design is still recalling.
+
+The manual testing document shipped with exactly this bug: a label annotation
+written as `-- label: branded` from memory, when the grammar in
+`src/core/annotations/index.ts` line 14 reads
+`css-console: <log-level> [property-list] [label="..."]`. The wrong spelling
+compiled to a `DUPLICATE_OPTION` diagnostic and a human caught it by running
+the scenario. Before writing any `css-console:` annotation, read that grammar
+line; before naming a diagnostic code, read the registry in
+`src/core/diagnostics/index.ts`; before describing an event shape, read
+`src/core/records/index.ts`.
+
+Examples and documents are code for this purpose. A fixture in a manual
+testing page or a snippet in a doc encodes a claim about what the project
+accepts, and it is verified the same way: run it through the real pipeline and
+compare the observed output against the written expectation before publishing
+either.
+
 ## How to verify
 
 Prefer the source that is actually installed, because that is the one running:
