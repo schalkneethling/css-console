@@ -2,11 +2,12 @@
  * Source discovery and loading.
  *
  * A scan needs CSS text and a name for it before anything else can happen.
- * This module supplies both, for inline `<style>` elements and for
- * `<link rel="stylesheet">` elements: it reads a live tree, returns one
- * source object per element in document order, and writes nothing anywhere.
- * Explicit raw sources arrive with CSSC-026, so `DiscoveredSource` is a union
- * with two members today and is expected to grow rather than to settle.
+ * This module supplies it for three kinds of source: inline `<style>`
+ * elements, `<link rel="stylesheet">` elements, and explicit raw sources a
+ * caller supplies directly. For the first two, this module reads a live
+ * tree, returns one source object per element in document order, and writes
+ * nothing anywhere. `DiscoveredSource` is a union over all three, and
+ * `kind` is what a consumer discriminates on.
  *
  * Discovery is only discovery. Nothing here compiles or decides whether a
  * source applies. A `disabled` style element and a `media="print"` style
@@ -147,6 +148,91 @@
  * every stability property the identifier has, which is what keeps a
  * diagnostic location comparable between two scans. A linked source needs no
  * synthesis: its URL is the URL it was fetched from.
+ *
+ * ## Explicit raw sources
+ *
+ * `acceptRawSources()` turns caller-supplied `{ id, css }` objects, for
+ * example CSS-in-JS output, constructed stylesheets, or text read by another
+ * tool, into sources exactly like the two kinds discovery finds. Nothing in
+ * the document carries a raw source, so it has no `element` field, and
+ * nothing needs to be searched for it: the caller already has the text.
+ *
+ * A caller who supplies no `url` gets one synthesized as `raw:<id>`, and the
+ * scheme is distinct from `inline:` on purpose rather than by coincidence. A
+ * diagnostic's `source.url` is how a report tells a reader which kind of
+ * source a location points into, and collapsing `raw:` and `inline:` into
+ * one scheme would make an inline style element and a caller-supplied string
+ * indistinguishable in that report, even though only one of them can be
+ * found by searching the document. Keeping the schemes apart costs nothing
+ * here, and it is the only way a reader can tell the two apart later.
+ * Neither scheme is registered and neither is fetchable, so a synthesized
+ * URL of either kind can never be confused with, or collide with, the URL of
+ * a linked stylesheet.
+ *
+ * An input whose `id` is the empty string is rejected rather than accepted
+ * as a source with an illegible name. CSSC-024 treats an empty identity
+ * *attribute* as absent, and then generates a name from the element's
+ * content hash, because an inline style element always has content to hash
+ * and an anonymous, generated name is exactly as legible in a report as an
+ * author-chosen one. A raw source has no equivalent fallback: this module
+ * never hashes a raw source's `css`, because the caller is not naming an
+ * anonymous document node whose only stable trait is its text, the caller is
+ * naming their own object, and an empty string is not a name. Accepting it
+ * silently would put an empty identifier in every report that mentions this
+ * source, which is the illegible outcome the identity attribute's fallback
+ * exists to avoid. `acceptRawSources()` reports it instead, through a
+ * dedicated `EMPTY_SOURCE_IDENTITY` diagnostic, and the input produces no
+ * source. `EMPTY_SOURCE_IDENTITY` is a code of its own rather than a case of
+ * `DUPLICATE_SOURCE_IDENTITY`, because the two claim different things: the
+ * duplicate code means more than one source shares a name and remediates by
+ * renaming one of them apart, while an empty `id` never had a name to share
+ * or to rename, and its `details` carries the position of the failing input
+ * in the supplied list rather than a holder count, because an empty string
+ * cannot itself identify which input it came from. `EMPTY_SOURCE_IDENTITY`
+ * carries error severity, unlike the duplicate code's warning, because the
+ * input this diagnostic describes produces nothing at all, matching how
+ * `SOURCE_PARSE_FAILED` is an error for a source that produces nothing,
+ * where a duplicate identity still leaves every affected source compiling
+ * and evaluating normally.
+ *
+ * `acceptRawSources()` does not check a raw source's `id` against another
+ * raw source's `id`, or against an inline or linked source's `id`. That
+ * check needs every source a scan collected, from every kind, and
+ * `acceptRawSources()` only ever sees the raw ones; see the next section.
+ *
+ * ## Duplicate identities across every source
+ *
+ * `diagnoseDuplicateIdentities()` takes every source one scan collected,
+ * inline, linked, and raw together, and reports one `DUPLICATE_SOURCE_IDENTITY`
+ * diagnostic per identity that more than one source carries. It composes
+ * over the whole set rather than living inside `discoverStyleSources()`,
+ * `loadLinkedSources()`, or `acceptRawSources()`, because a duplicate is a
+ * property of the set, not of any one source in it: an inline style whose
+ * author-supplied identity attribute collides with an explicit raw source's
+ * `id` is exactly as ambiguous in a report as two inline styles sharing one
+ * attribute, and nothing short of a check over the combined list can see
+ * either collision.
+ *
+ * That combined check closes a gap CSSC-024 left open: `discoverStyleSources()`
+ * accepts two `<style>` elements carrying the same `data-css-console-source`
+ * attribute value without complaint, because naming is that function's whole
+ * job and detecting a collision across the page is a different one. Nothing
+ * before this module composed inline discovery with a check over the result,
+ * so the collision passed through silently. `diagnoseDuplicateIdentities()`
+ * is that check, and a caller that runs it after combining every source's
+ * sources closes the gap for inline styles, for linked stylesheets, and for
+ * raw sources at once, whichever combination collides.
+ *
+ * The diagnostic carries `warning` severity rather than `error`, because a
+ * duplicate identity does not stop anything from compiling or evaluating:
+ * every source with the shared identity still becomes probes and records.
+ * What a duplicate breaks is legibility, a report that attributes a finding
+ * to `identity` cannot say which of the holding sources it came from, and a
+ * warning is the severity this registry already uses for a condition that
+ * degrades a report rather than a scan (`RESERVED_PENDING_SUPPORT`,
+ * `NOT_A_TARGET`). The diagnostic's `details` field carries the shared
+ * `identity` and the `holders` count, so a reader can find every source that
+ * needs a distinct name without cross-referencing anything else.
  *
  * ## Which links are stylesheet links
  *
@@ -336,10 +422,149 @@ export type LinkedSource = {
 };
 
 /**
- * Any source a scan can compile. Two members today; CSSC-026 adds explicit
- * raw sources, and the `kind` field is what a consumer discriminates on.
+ * An explicit source a caller supplied directly through `acceptRawSources()`,
+ * named and ready for compilation.
+ *
+ * There is no `element` field, because nothing in the document carries a raw
+ * source: it did not come from reading a tree, so there is no live node a
+ * later pass could search for again. `id` is the identifier the caller
+ * supplied, verbatim. `url` is the caller's own `url` when they supplied one,
+ * and a synthesized `raw:<id>` otherwise; see the module doc comment for why
+ * that scheme is distinct from the `inline:` scheme an anonymous style
+ * element receives.
  */
-export type DiscoveredSource = StyleElementSource | LinkedSource;
+export type RawSource = {
+  readonly kind: "raw";
+  readonly id: string;
+  readonly url: string;
+  readonly css: string;
+};
+
+/**
+ * Any source a scan can compile: an inline style element, a linked
+ * stylesheet, or an explicit raw source. The `kind` field is what a consumer
+ * discriminates on.
+ */
+export type DiscoveredSource = StyleElementSource | LinkedSource | RawSource;
+
+/**
+ * The shape a caller supplies to `acceptRawSources()`: an identifier and CSS
+ * text, with an optional URL. This is smaller than `RawSource`, which is the
+ * shape `acceptRawSources()` returns, because `url` is optional here and
+ * always present on the result; see the module doc comment for what happens
+ * when a caller omits it.
+ */
+export type RawSourceInput = {
+  readonly id: string;
+  readonly css: string;
+  readonly url?: string;
+};
+
+/**
+ * The prefix of a synthesized raw source URL, used when a caller supplies no
+ * `url` of their own. See the module doc comment for why this is a distinct
+ * scheme from `inline:` rather than a shared one.
+ */
+const RAW_URL_SCHEME = "raw:";
+
+/**
+ * What one call to `acceptRawSources()` produced: a source per input that
+ * carried a usable identity, in the order the inputs were supplied, and a
+ * diagnostic per input that did not.
+ */
+export type AcceptRawSourcesResult = {
+  readonly sources: readonly RawSource[];
+  readonly diagnostics: readonly Diagnostic[];
+};
+
+/**
+ * Turns caller-supplied `{ id, css }` objects into raw sources, in the order
+ * they were supplied.
+ *
+ * An input whose `id` is the empty string produces no source and produces an
+ * `EMPTY_SOURCE_IDENTITY` diagnostic instead, carrying the input's `index` in
+ * `inputs` so a caller can find it; the module doc comment records why an
+ * empty identity is rejected here rather than falling back to a generated
+ * one the way an empty identity attribute does for an inline style element,
+ * and why this is a code of its own rather than a case of
+ * `DUPLICATE_SOURCE_IDENTITY`.
+ *
+ * This function checks nothing about one input's `id` against another
+ * input's `id`, and nothing about a raw source's `id` against an inline or
+ * linked source's `id`. Diagnosing a duplicate needs the full set of sources
+ * one scan collected, which this function does not have, and
+ * `diagnoseDuplicateIdentities()` is where that check runs; see the module
+ * doc comment.
+ *
+ * This function touches no DOM API and reads no global state, so it is safe
+ * to call from either the unit or the browser test lane; it lives beside the
+ * rest of source discovery for module cohesion with the `DiscoveredSource`
+ * union its result belongs to, not because it needs a live document.
+ */
+export function acceptRawSources(inputs: readonly RawSourceInput[]): AcceptRawSourcesResult {
+  const sources: RawSource[] = [];
+  const diagnostics: Diagnostic[] = [];
+
+  for (const [index, input] of inputs.entries()) {
+    if (input.id === "") {
+      diagnostics.push(
+        createDiagnostic("EMPTY_SOURCE_IDENTITY", {
+          details: { index },
+        }),
+      );
+      continue;
+    }
+
+    sources.push({
+      kind: "raw",
+      id: input.id,
+      url: input.url ?? `${RAW_URL_SCHEME}${input.id}`,
+      css: input.css,
+    });
+  }
+
+  return { sources, diagnostics };
+}
+
+/**
+ * Reports every identity carried by more than one source, once per
+ * duplicated identity, across every kind of source a scan collected: inline
+ * style elements, linked stylesheets, and explicit raw sources together.
+ *
+ * The module doc comment records why this composes over the combined list
+ * rather than living inside `discoverStyleSources()`, `loadLinkedSources()`,
+ * or `acceptRawSources()`, and why the diagnostic carries `warning` severity.
+ * The `details` field on each diagnostic carries the shared `identity` and
+ * the `holders` count.
+ *
+ * Diagnostics are emitted in the order their identity was first seen in
+ * `sources`, which is deterministic for a caller that assembles `sources` in
+ * a fixed order, such as inline sources, then linked sources, then raw
+ * sources.
+ */
+export function diagnoseDuplicateIdentities(
+  sources: readonly DiscoveredSource[],
+): readonly Diagnostic[] {
+  const holders = new Map<string, number>();
+
+  for (const source of sources) {
+    holders.set(source.id, (holders.get(source.id) ?? 0) + 1);
+  }
+
+  const diagnostics: Diagnostic[] = [];
+
+  for (const [identity, count] of holders) {
+    if (count > 1) {
+      diagnostics.push(
+        createDiagnostic("DUPLICATE_SOURCE_IDENTITY", {
+          details: { identity, holders: count },
+        }),
+      );
+    }
+  }
+
+  return diagnostics;
+}
 
 /**
  * The options `loadLinkedSources()` accepts.

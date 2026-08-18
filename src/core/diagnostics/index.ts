@@ -43,9 +43,10 @@ export type DiagnosticSeverity = "info" | "warning" | "error";
  * whether the compiler discovers it (`MALFORMED_SELECTOR_LIST`,
  * `INVALID_NESTING_SELECTOR`) or the live selector engine does
  * (`UNPARSEABLE_SELECTOR_BRANCH`). `source` names a failure while
- * discovering or loading a source. `informational` names a condition that is
- * neither an error nor a warning, reported because it answers a debugging
- * question.
+ * discovering or loading a source, or an ambiguity in how sources are
+ * identified once discovery has produced them. `informational` names a
+ * condition that is neither an error nor a warning, reported because it
+ * answers a debugging question.
  */
 export type DiagnosticCategory =
   | "reserved-pending-support"
@@ -129,6 +130,18 @@ export const DIAGNOSTIC_REGISTRY = {
     "error",
     "source",
     "A source could not be parsed as CSS. No probe is compiled for this source, and it is skipped rather than allowed to stop the rest of the scan. Check the reported location for an unclosed block, an unmatched bracket, or a stray closing brace, and correct the malformed CSS.",
+  ),
+  DUPLICATE_SOURCE_IDENTITY: defineDiagnostic(
+    "DUPLICATE_SOURCE_IDENTITY",
+    "warning",
+    "source",
+    "More than one source carries the same identity. Reports about these sources cannot be told apart by identity alone, so a finding attributed to this identifier may belong to any of the sources that share it. Rename the sources so that each identity is held by exactly one of them.",
+  ),
+  EMPTY_SOURCE_IDENTITY: defineDiagnostic(
+    "EMPTY_SOURCE_IDENTITY",
+    "error",
+    "source",
+    "An explicit source was supplied with an empty id. The input produced no source, because the caller names a raw source and an empty string is not a name. Supply a non-empty id for this source.",
   ),
   NO_TARGET: defineDiagnostic(
     "NO_TARGET",
