@@ -329,11 +329,10 @@ export const rejectedUnknownCode = (): Diagnostic =>
  * list, which would have recorded a gap that does not exist.
  */
 const PENDING_EMITTERS: Readonly<Record<string, string>> = {
-  // Source discovery and loading is Phase 3: CSSC-025 loads linked
-  // stylesheets and is where a failed fetch and an HTTP error status are
-  // first reported.
-  SOURCE_LOAD_FAILED: "CSSC-025",
-  SOURCE_HTTP_ERROR: "CSSC-025",
+  // Empty. SOURCE_LOAD_FAILED and SOURCE_HTTP_ERROR were the last two
+  // entries, and CSSC-025 emits both from the linked stylesheet loader in
+  // src/browser/sources/index.ts, so every registered code is produced by
+  // shipped source. An entry added here needs a reason written beside it.
 };
 
 /**

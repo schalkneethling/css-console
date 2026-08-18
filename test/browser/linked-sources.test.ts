@@ -72,7 +72,7 @@ async function withFixture<T>(markup: string, body: (host: HTMLElement) => Promi
 function countingFetch(): { fetch: typeof globalThis.fetch; calls: string[] } {
   const calls: string[] = [];
   const wrapped: typeof globalThis.fetch = (input, init) => {
-    calls.push(String(input));
+    calls.push(input instanceof Request ? input.url : input.toString());
 
     return globalThis.fetch(input, init);
   };
