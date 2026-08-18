@@ -124,6 +124,12 @@ export const DIAGNOSTIC_REGISTRY = {
     "source",
     "A linked source responded with an HTTP error status. Check that the URL is correct and that the resource is reachable with that status in mind.",
   ),
+  SOURCE_PARSE_FAILED: defineDiagnostic(
+    "SOURCE_PARSE_FAILED",
+    "error",
+    "source",
+    "A source could not be parsed as CSS. No probe is compiled for this source, and it is skipped rather than allowed to stop the rest of the scan. Check the reported location for an unclosed block, an unmatched bracket, or a stray closing brace, and correct the malformed CSS.",
+  ),
   NO_TARGET: defineDiagnostic(
     "NO_TARGET",
     "warning",

@@ -52,7 +52,7 @@ export {
 } from "./probe-id.ts";
 export type { CallSiteIdentity, FunctionProbeIdentity, ValueProbeIdentity } from "./probe-id.ts";
 
-import postcss from "postcss";
+import postcss, { CssSyntaxError } from "postcss";
 import type { AtRule, Declaration, Root, Rule } from "postcss";
 
 import { createDiagnostic } from "../diagnostics/index.ts";
@@ -1213,6 +1213,48 @@ function orderDiagnostics(diagnostics: readonly Diagnostic[]): readonly Diagnost
 }
 
 /**
+ * A guard index with no entries, returned when a source fails to parse and
+ * there is no tree to build a real index from.
+ */
+function emptyGuardIndex(): GuardIndex {
+  return {
+    byProperty: new Map(),
+    logical: new Set(),
+    all: new Set(),
+    entries: new WeakMap(),
+  };
+}
+
+/**
+ * Builds the source location a parse failure reports, from the position a
+ * PostCSS `CssSyntaxError` carries.
+ *
+ * Verified against the pinned node_modules/postcss (postcss@8.5.23):
+ * `line` and `column` are always set when the parser throws, but `endLine`
+ * and `endColumn` are set only when the parser reports a range rather than a
+ * single point. Running `postcss.parse(".a { color: red;")` throws from
+ * `Parser.unclosedBlock()` at node_modules/postcss/lib/parser.js:582, which
+ * calls `this.input.error("Unclosed block", pos.line, pos.column)` with two
+ * numbers, so the resulting error carries `line` and `column` but no
+ * `endLine` or `endColumn` (node_modules/postcss/lib/css-syntax-error.js:22-31
+ * only assigns `endLine`/`endColumn` when the second and third arguments are
+ * position objects rather than numbers). Running
+ * `postcss.parse(".a { color: red; } }")` throws from
+ * `Parser.unexpectedClose()` at node_modules/postcss/lib/parser.js:594, which
+ * passes two offset objects and so does carry `endLine` and `endColumn`. When
+ * they are absent, the location collapses to the single point `start` names.
+ */
+function locationOfSyntaxError(error: CssSyntaxError, url: string): SourceLocation {
+  const start = { line: error.line ?? 1, column: error.column ?? 1 };
+  const end =
+    error.endLine === undefined || error.endColumn === undefined
+      ? start
+      : { line: error.endLine, column: error.endColumn };
+
+  return { url, start, end };
+}
+
+/**
  * Compiles one CSS source into everything the browser layer needs: every
  * probe the source's annotations produce, the guard index over all of its
  * declarations, and every diagnostic compiling it produced.
@@ -1226,15 +1268,48 @@ function orderDiagnostics(diagnostics: readonly Diagnostic[]): readonly Diagnost
  * tree everything else compiles from, so the positions one pass records name
  * nodes another pass can find.
  *
- * A source PostCSS cannot parse throws, and the throw is deliberate. Fault
- * isolation is by source (implementation plan section 5.11), and the caller
- * that owns a set of sources is the one that can carry on with the rest;
- * there is no registered diagnostic for a malformed source, and inventing one
- * here would be guessing at the reporting Phase 3 has yet to specify.
+ * A source PostCSS cannot parse no longer throws. Fault isolation is by
+ * source (implementation plan section 5.11): the caller that owns a set of
+ * sources is the one that can carry on with the rest, and an exception
+ * escaping one source gives it no chance to do that. Instead, a parse
+ * failure is caught and reported as a single `SOURCE_PARSE_FAILED`
+ * diagnostic, and compilation returns an empty result, matching what an
+ * annotation that compiles to nothing already does elsewhere in this module:
+ * it says why rather than staying silent. `CssSyntaxError` is identified by
+ * `error.name` rather than `instanceof`, following the guidance in
+ * node_modules/postcss/lib/css-syntax-error.d.ts, because more than one copy
+ * of the postcss package can end up in `node_modules` and `instanceof` would
+ * fail to recognize an error thrown by a different copy. Any other error
+ * PostCSS's own parser is not documented to throw, so it is rethrown rather
+ * than treated as a parse failure.
  */
 export function compileSource(css: string, options: CompileSourceOptions): CompiledSource {
   const { url } = options;
-  const root = postcss.parse(css, { from: url });
+
+  let root: Root;
+
+  try {
+    root = postcss.parse(css, { from: url });
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== "CssSyntaxError") {
+      throw error;
+    }
+
+    const syntaxError = error as CssSyntaxError;
+
+    return {
+      url,
+      probes: [],
+      guardIndex: emptyGuardIndex(),
+      diagnostics: [
+        createDiagnostic("SOURCE_PARSE_FAILED", {
+          source: locationOfSyntaxError(syntaxError, url),
+          details: { reason: syntaxError.reason },
+        }),
+      ],
+    };
+  }
+
   const association = associateAnnotations(css, { url, root });
   const guardIndex = buildGuardIndex(root, url);
 

@@ -28,6 +28,10 @@ This diagnostic fires when a linked stylesheet fails to load. It tells you that 
 
 This diagnostic fires when a linked stylesheet's request completes but the response carries an HTTP error status. Unlike `SOURCE_LOAD_FAILED`, this failure is distinguishable: the request reached the server and the server answered. It tells you the resource was reachable, and that css-console rejected it because the response status reports an error rather than success. Check that the URL is correct, that the resource exists at that URL, and what the reported status indicates about the request or the resource.
 
+## SOURCE_PARSE_FAILED
+
+This diagnostic fires when a source fails to parse as CSS, such as an unclosed block or a stray closing brace. It tells you that fault isolation is by source: css-console reports the failure and continues with the rest of the scan rather than throwing, matching the failure model in the implementation plan section 5.11, so an unparseable source produces a diagnostic and an empty compilation rather than stopping every other source from being scanned. The `details` field carries the parser's own reason string, and the diagnostic's source location points at the position PostCSS reported for the failure. Correct the malformed CSS at that location; an unclosed block, an unmatched bracket, and an unexpected closing brace are the common causes.
+
 ## NO_TARGET
 
 This diagnostic fires when a css-console annotation comment has nothing to attach to: no style rule, no `@function` definition, and no declaration follows it in a position the grammar recognizes. It tells you the annotation is orphaned. Place it immediately before a style rule or an `@function` at-rule, or as a trailing comment after a declaration on the same line.
