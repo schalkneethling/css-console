@@ -131,6 +131,14 @@ export type ScannerOptions = {
   /** Explicit raw sources scanned beside the discovered ones. */
   readonly rawSources?: readonly RawSourceInput[];
 
+  /**
+   * Whether the scan discovers document sources at all. On by default; a
+   * caller scanning only explicit raw sources turns it off, and the raw
+   * probes still match the live document, because what is scanned and what
+   * is matched are different questions.
+   */
+  readonly discover?: boolean;
+
   /** URL patterns of sources to exclude, in the gate's grammar. */
   readonly exclude?: readonly string[];
 
@@ -332,13 +340,16 @@ export function createScanner(options: ScannerOptions = {}): Scanner {
     await afterFrame(target);
     signal?.throwIfAborted();
 
-    const styleSources = discoverStyleSources(root, identity);
-    const linkElements = discoverLinkElements(root);
-    const linked = await loadLinkedSources(root, identity, {
-      exclude,
-      signal,
-      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-    });
+    const discover = options.discover ?? true;
+    const styleSources = discover ? discoverStyleSources(root, identity) : [];
+    const linkElements = discover ? discoverLinkElements(root) : [];
+    const linked = discover
+      ? await loadLinkedSources(root, identity, {
+          exclude,
+          signal,
+          ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        })
+      : { sources: [], diagnostics: [], excludedElements: [] };
 
     signal?.throwIfAborted();
 
