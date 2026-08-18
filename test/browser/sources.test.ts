@@ -145,9 +145,7 @@ test("inserting a style element before existing ones leaves the existing identif
       // positions one and two, and kept the identifiers the first discovery
       // gave them. That is the `WeakMap` half of the scheme: a positional
       // identifier would renumber both of them here.
-      expect(after.slice(1).map((source) => source.id)).toEqual(
-        before.map((source) => source.id),
-      );
+      expect(after.slice(1).map((source) => source.id)).toEqual(before.map((source) => source.id));
     },
   );
 });
@@ -249,9 +247,12 @@ test("an author-supplied identity survives a move that a generated identifier wo
 });
 
 test("an empty identity attribute is treated as absent rather than as an empty identifier", () => {
-  withFixture(`<style ${SOURCE_IDENTITY_ATTRIBUTE}="">.a { color: rgb(1 1 1); }</style>`, (host) => {
-    expect(idsOf(host)[0]).not.toBe("");
-  });
+  withFixture(
+    `<style ${SOURCE_IDENTITY_ATTRIBUTE}="">.a { color: rgb(1 1 1); }</style>`,
+    (host) => {
+      expect(idsOf(host)[0]).not.toBe("");
+    },
+  );
 });
 
 test("a generated identifier never collides with an author-supplied one it would have matched", () => {
