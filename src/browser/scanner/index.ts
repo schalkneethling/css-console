@@ -85,7 +85,8 @@
  *
  * `probes.skipped` counts the probes evaluation answered without asking the
  * engine anything: a value probe whose rule context is inactive at scan
- * time, and a function probe in an engine without `CSSFunctionRule`. Both
+ * time, a function probe in an engine without `CSSFunctionRule`, and a
+ * function probe whose every call site sits in an inactive context. All
  * still emit their boundary events, so the count is visible in the stream as
  * well as in the summary. The scanner reads the same live predicates
  * evaluation reads (`isContextActive()`, `supportsCustomFunctions()`), so
