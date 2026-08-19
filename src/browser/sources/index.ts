@@ -673,8 +673,9 @@ async function loadOneUrl(
  * by source (implementation plan section 5.11), so one unreachable stylesheet
  * leaves every other link, and every inline style, unaffected. The one
  * rejection is an abort, which is the caller's own decision rather than a
- * finding about the document; an already-aborted signal rejects before
- * anything is requested.
+ * finding about the document; an already-aborted signal rejects before any
+ * link is named or any URL is requested, so it leaves no trace in the
+ * identity.
  *
  * Nothing here inspects a response's content type. The module doc comment
  * records what the engine itself does with a non-CSS stylesheet link and why
@@ -689,10 +690,11 @@ export async function loadLinkedSources(
   // Bound to the global object, because `fetch()` throws when it is called
   // with a `this` that is not the window it came from.
   const request = options.fetch ?? globalThis.fetch.bind(globalThis);
-  const links = nameLinkElements(discoverLinkElements(root), identity);
-  const urls = [...new Set(links.map((link) => link.url))];
 
   signal?.throwIfAborted();
+
+  const links = nameLinkElements(discoverLinkElements(root), identity);
+  const urls = [...new Set(links.map((link) => link.url))];
 
   const outcomes = await Promise.all(urls.map((url) => loadOneUrl(url, request, signal)));
   const aborted = outcomes.find((outcome) => outcome.kind === "aborted");
