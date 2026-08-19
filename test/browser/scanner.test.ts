@@ -220,9 +220,18 @@ test("aborting during a pending load rejects the scan and delivers no summary", 
       });
 
       // A fetch that respects the abort signal and otherwise never settles,
-      // so the scan is reliably in flight when the abort fires.
+      // so the scan is reliably in flight when the abort fires. A signal
+      // already aborted at call time rejects immediately, as the real
+      // fetch() does, so the helper stays honest if a future caller reaches
+      // it after aborting.
       const hanging: typeof globalThis.fetch = (_input, init) =>
         new Promise((_resolve, reject) => {
+          if (init?.signal?.aborted === true) {
+            reject(new DOMException("Aborted", "AbortError"));
+
+            return;
+          }
+
           sawRequest();
           init?.signal?.addEventListener("abort", () => {
             reject(new DOMException("Aborted", "AbortError"));
@@ -335,8 +344,21 @@ test("the summary counts sources across every bucket and probes across every sta
      <p class="counted"></p>`,
     css,
     async (host) => {
+      // The 404 is answered by an injected fetch rather than by the dev
+      // server, so the failed bucket does not depend on how the server
+      // happens to answer an unknown path. Only the missing URL is faked;
+      // nothing else in this fixture is fetched at all.
+      const missingUrl = new URL("/scanner-missing-fixture.css", window.location.origin).href;
+      const answering: typeof globalThis.fetch = (input, init) => {
+        const url = input instanceof Request ? input.url : input.toString();
+
+        return url === missingUrl
+          ? Promise.resolve(new Response("", { status: 404 }))
+          : globalThis.fetch(input, init);
+      };
       const scanner = createScanner({
         root: host,
+        fetch: answering,
         exclude: ["**/excluded-by-pattern.css"],
         rawSources: [
           {
@@ -389,6 +411,34 @@ test("a value probe inside an inactive context is counted as skipped", async () 
       scanner.dispose();
     },
   );
+});
+
+test("a function probe whose every call site is inactive is counted as skipped", async () => {
+  // The counter parity the summary promises: a value probe in an inactive
+  // context counts as skipped, and a function probe evaluates through its
+  // call sites, so a function whose every call site sits in an inactive
+  // context evaluated nothing and counts the same way. The engine supports
+  // @function in this lane, so the skip is the contexts' doing alone.
+  const css = `/* css-console: log */
+@function --gap() {
+  result: 4px;
+}
+
+@media (min-width: 100000px) {
+  .never-called {
+    margin-left: --gap();
+  }
+}`;
+
+  await withFixture(`<p class="never-called"></p>`, css, async (host) => {
+    const scanner = createScanner({ root: host });
+    const summary = await scanner.scan();
+
+    expect(summary.probes).toEqual({ compiled: 1, evaluated: 0, skipped: 1 });
+    expect(summary.records).toHaveLength(0);
+
+    scanner.dispose();
+  });
 });
 
 test("construction validates maxElements, so a configuration error fails before any scan", () => {
