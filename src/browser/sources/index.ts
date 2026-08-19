@@ -1059,10 +1059,10 @@ export async function loadLinkedSources(
   // Exclusion happens on the resolved URL before naming and before any
   // request, so an excluded stylesheet costs no network traffic and no
   // identity entry; the elements travel back so a scan can count them.
-  const excludedElements = discovered.filter((link) =>
-    exclude.some((pattern) => matchesUrlPattern(link.href, pattern)),
-  );
-  const included = discovered.filter((link) => !excludedElements.includes(link));
+  const isExcluded = (link: HTMLLinkElement): boolean =>
+    exclude.some((pattern) => matchesUrlPattern(link.href, pattern));
+  const excludedElements = discovered.filter(isExcluded);
+  const included = discovered.filter((link) => !isExcluded(link));
   const links = nameLinkElements(included, identity);
   const urls = [...new Set(links.map((link) => link.url))];
 

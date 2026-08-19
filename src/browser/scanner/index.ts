@@ -214,6 +214,45 @@ function whenReady(target: Document, signal: AbortSignal | undefined): Promise<v
 }
 
 /**
+ * Resolves when `waited` settles, or rejects with the signal's reason if
+ * the signal aborts first. The fonts stage needs this because
+ * `document.fonts.ready` is a promise the engine owns: it cannot be
+ * cancelled and it settles only when font loading does, so awaiting it
+ * bare would leave an aborted scan pending until the engine decided
+ * otherwise, unlike every other stage. The engine's promise keeps running
+ * after an abort wins the race; the scan just stops waiting for it.
+ */
+function abortableWait(waited: Promise<unknown>, signal: AbortSignal | undefined): Promise<void> {
+  if (signal === undefined) {
+    return waited.then(() => undefined);
+  }
+
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+
+      return;
+    }
+
+    const onAbort = () => {
+      reject(signal.reason);
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    waited.then(
+      () => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      },
+      (reason: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(reason);
+      },
+    );
+  });
+}
+
+/**
  * Resolves after one animation frame in the document's own window. The
  * frame is requested from the root document's view rather than from the
  * global one, so a scan of an iframe document stabilizes against the frames
@@ -285,7 +324,7 @@ export function createScanner(options: ScannerOptions = {}): Scanner {
     signal?.throwIfAborted();
 
     if (options.waitForFonts === true) {
-      await target.fonts.ready;
+      await abortableWait(target.fonts.ready, signal);
       signal?.throwIfAborted();
     }
 
@@ -362,8 +401,19 @@ export function createScanner(options: ScannerOptions = {}): Scanner {
       counts.probes.compiled += compiled.probes.length;
 
       for (const probe of compiled.probes) {
+        // A function probe is skipped when the engine cannot evaluate it, and
+        // also when every one of its call sites sits in an inactive context,
+        // because the evaluator then evaluates nothing, exactly as it
+        // evaluates nothing for a value probe whose own context is inactive.
+        // A function with no call sites at all still counts as evaluated: an
+        // uncalled function is a debugging answer the evaluator reports, not
+        // work it declined.
         const skipped =
-          probe.kind === "value" ? !isContextActive(probe.context) : !functionsSupported;
+          probe.kind === "value"
+            ? !isContextActive(probe.context)
+            : !functionsSupported ||
+              (probe.callSites.length > 0 &&
+                probe.callSites.every((callSite) => !isContextActive(callSite.context)));
 
         if (skipped) {
           counts.probes.skipped += 1;
