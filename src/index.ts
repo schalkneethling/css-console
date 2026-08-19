@@ -6,10 +6,11 @@
  * aliases that resolve those shapes to a live `Element` target. It also
  * exposes `compileSource()`, the whole of the compiler behind one function:
  * one CSS source in, every probe, the guard index, and every diagnostic out,
- * with no CSS evaluated. The runtime that turns those into records, including
- * `createCSSConsole()`, lands in later issues. The package exposes one public
- * entry point; internal directories are reached through relative imports,
- * never through published subpath exports.
+ * with no CSS evaluated. It also exposes `createCSSConsole()`, the runtime
+ * that turns those into records: construct with configuration, subscribe for
+ * live events, scan for a summary, and dispose (CSSC-029). The package
+ * exposes one public entry point; internal directories are reached through
+ * relative imports, never through published subpath exports.
  */
 
 export const PACKAGE_NAME = "@schalkneethling/css-console";
@@ -65,3 +66,7 @@ export type {
   BrowserScanSummary,
   BrowserValueRecord,
 } from "./browser/records/index.ts";
+
+export { createCSSConsole } from "./browser/facade/index.ts";
+export type { CSSConsole, CSSConsoleOptions, ScanOptions } from "./browser/facade/index.ts";
+export type { RawSourceInput } from "./browser/sources/index.ts";
