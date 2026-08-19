@@ -66,6 +66,18 @@
  * named by its resolved URL, which needs no hash because it is already stable
  * across reloads by construction.
  *
+ * A decided identifier is never rewritten, and that includes two elements
+ * that decided on the same one: two style elements carrying the same
+ * attribute value both keep it, verbatim. Suffixing the second claimant
+ * would silently rename an identity a human chose, and which element lost
+ * its name would depend on document order, so a report would attribute
+ * findings to a name no author wrote without anyone being told. A duplicate
+ * is an ambiguity to report rather than repair, and detecting one is a
+ * check over the combined source set rather than a naming concern, so it is
+ * a separate pass (CSSC-026). Only generated identifiers pass through
+ * disambiguation, because an anonymous element has no chosen name to
+ * preserve.
+ *
  * ## The identity attribute
  *
  * The attribute is `data-css-console-source`. A `data-` attribute is the
