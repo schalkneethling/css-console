@@ -38,14 +38,26 @@ import {
 /** A representative fixture served as CSS text rather than as a Vite module. */
 const FIXTURE_PATH = "test/fixtures/representative/card-components.css?direct";
 
-/** The same fixture as an absolute, same-origin URL. */
-const FIXTURE_URL = new URL(FIXTURE_PATH, document.baseURI).href;
+/**
+ * The same fixture as an absolute, same-origin URL. The fixtures write their
+ * `href` attributes root-absolute, so the expected URL resolves the same
+ * root-absolute path against the origin rather than against
+ * `document.baseURI`, which would silently diverge if the test page ever
+ * moved off the origin root.
+ */
+const FIXTURE_URL = new URL(`/${FIXTURE_PATH}`, window.location.origin).href;
 
 /** A second fixture, so that two links can differ in URL. */
 const OTHER_PATH = "test/fixtures/representative/nested-card.css?direct";
 
+/** The second fixture as an absolute, same-origin URL. */
+const OTHER_URL = new URL(`/${OTHER_PATH}`, window.location.origin).href;
+
 /** A same-origin path the dev server answers with 404. */
 const MISSING_PATH = "test/fixtures/representative/there-is-no-such-file.css";
+
+/** The missing path as the absolute URL a diagnostic reports. */
+const MISSING_URL = new URL(`/${MISSING_PATH}`, window.location.origin).href;
 
 /**
  * A cross-origin URL that cannot resolve. `.invalid` is reserved by RFC 2606,
@@ -137,7 +149,7 @@ test("an HTTP error status is reported as SOURCE_HTTP_ERROR carrying the status"
     expect(diagnostic.code).toBe("SOURCE_HTTP_ERROR");
     expect(diagnostic.severity).toBe("error");
     expect(diagnostic.details?.status).toBe(404);
-    expect(diagnostic.details?.url).toBe(new URL(MISSING_PATH, document.baseURI).href);
+    expect(diagnostic.details?.url).toBe(MISSING_URL);
     // A transport failure has no CSS position, so no location is synthesized;
     // the URL travels in `details` instead.
     expect(diagnostic.source).toBeUndefined();
@@ -284,6 +296,40 @@ test("a signal already aborted rejects without requesting anything", async () =>
   });
 });
 
+test("a signal already aborted rejects before any link is named", async () => {
+  await withFixture(
+    `<link rel="stylesheet" href="/${FIXTURE_PATH}">
+     <link rel="stylesheet" href="/${FIXTURE_PATH}">`,
+    async (host) => {
+      const identity = createSourceIdentity();
+      const controller = new AbortController();
+
+      controller.abort();
+
+      const error = await loadLinkedSources(host, identity, {
+        signal: controller.signal,
+      }).then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+
+      expect((error as Error).name).toBe("AbortError");
+
+      // Had the aborted call named the links before rejecting, the two
+      // same-URL links would have claimed the URL and its `-2` suffix in the
+      // shared identity. Removing the first link and loading again would then
+      // report the surviving link under the suffixed name, an identifier that
+      // reflects a document shape the caller abandoned rather than the one
+      // being scanned.
+      host.querySelector("link")?.remove();
+
+      const { sources } = await loadLinkedSources(host, identity);
+
+      expect(sources.map((source) => source.id)).toEqual([FIXTURE_URL]);
+    },
+  );
+});
+
 test("one failing link does not prevent another link from loading", async () => {
   await withFixture(
     `<link rel="stylesheet" href="${UNREACHABLE_URL}">
@@ -293,10 +339,7 @@ test("one failing link does not prevent another link from loading", async () => 
     async (host) => {
       const { sources, diagnostics } = await loadLinkedSources(host, createSourceIdentity());
 
-      expect(sources.map((source) => source.url)).toEqual([
-        FIXTURE_URL,
-        new URL(OTHER_PATH, document.baseURI).href,
-      ]);
+      expect(sources.map((source) => source.url)).toEqual([FIXTURE_URL, OTHER_URL]);
       // Diagnostics follow document order even though the requests ran
       // concurrently and finished in whatever order the network produced.
       expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
@@ -450,7 +493,7 @@ test("a link that changes href keeps the identifier the identity recorded for it
     // The element is the same element, so reports about it stay comparable
     // across the change, exactly as an edited inline style element does.
     expect(second.sources[0]?.id).toBe(FIXTURE_URL);
-    expect(second.sources[0]?.url).toBe(new URL(OTHER_PATH, document.baseURI).href);
+    expect(second.sources[0]?.url).toBe(OTHER_URL);
   });
 });
 
