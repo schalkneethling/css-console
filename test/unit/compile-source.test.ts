@@ -552,8 +552,56 @@ test("a declaration inside a descriptor at-rule compiles no probe and explains i
   ]);
 });
 
-test("a source PostCSS cannot parse throws rather than compiling silently", () => {
-  expect(() => compile(".a { color: red;")).toThrow();
+test("an unclosed rule reports SOURCE_PARSE_FAILED rather than throwing, with no probes and an empty guard index", () => {
+  const compiled = compile(".a { color: red;");
+
+  expect(compiled.probes).toEqual([]);
+  expect(codes(compiled)).toEqual(["SOURCE_PARSE_FAILED"]);
+  expect(compiled.guardIndex.all.size).toBe(0);
+  expect(compiled.guardIndex.byProperty.size).toBe(0);
+  expect(compiled.guardIndex.logical.size).toBe(0);
+
+  const [diagnostic] = compiled.diagnostics;
+
+  expect(diagnostic?.severity).toBe("error");
+  expect(diagnostic?.source?.url).toBe(INLINE_URL);
+  // PostCSS reports an unclosed block at the position of the block that
+  // never closed, verified by running `postcss.parse(".a { color: red;")`
+  // against the pinned node_modules/postcss: the thrown CssSyntaxError
+  // carries `line: 1, column: 1` and `reason: "Unclosed block"`, with no
+  // `endLine`/`endColumn`, so the location collapses to a single point.
+  expect(diagnostic?.source?.start).toEqual({ line: 1, column: 1 });
+  expect(diagnostic?.source?.end).toEqual({ line: 1, column: 1 });
+  expect(diagnostic?.details?.["reason"]).toBe("Unclosed block");
+});
+
+test("a stray closing brace reports SOURCE_PARSE_FAILED at the offending position", () => {
+  const compiled = compile(".a { color: red; } }");
+
+  expect(compiled.probes).toEqual([]);
+  expect(codes(compiled)).toEqual(["SOURCE_PARSE_FAILED"]);
+
+  const [diagnostic] = compiled.diagnostics;
+
+  // Verified the same way: `postcss.parse(".a { color: red; } }")` throws a
+  // CssSyntaxError carrying `line: 1, column: 20`, `endLine: 1,
+  // endColumn: 21`, and `reason: "Unexpected }"`, because
+  // Parser#unexpectedClose() in node_modules/postcss/lib/parser.js passes an
+  // offset range rather than a single position.
+  expect(diagnostic?.source?.start).toEqual({ line: 1, column: 20 });
+  expect(diagnostic?.source?.end).toEqual({ line: 1, column: 21 });
+  expect(diagnostic?.details?.["reason"]).toBe("Unexpected }");
+});
+
+test("a parseable source compiles unaffected by parse failure handling", () => {
+  const compiled = compile(`/* css-console: log */
+.card {
+  color: red;
+}`);
+
+  expect(codes(compiled)).toEqual([]);
+  expect(compiled.probes).toHaveLength(1);
+  expect(compiled.guardIndex.byProperty.size).toBeGreaterThan(0);
 });
 
 /**
