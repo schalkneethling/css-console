@@ -54,6 +54,8 @@ const EXPECTED_DEFINITIONS = {
   SOURCE_LOAD_FAILED: { severity: "error", category: "source" },
   SOURCE_HTTP_ERROR: { severity: "error", category: "source" },
   SOURCE_PARSE_FAILED: { severity: "error", category: "source" },
+  DUPLICATE_SOURCE_IDENTITY: { severity: "warning", category: "source" },
+  EMPTY_SOURCE_IDENTITY: { severity: "error", category: "source" },
   NO_TARGET: { severity: "warning", category: "annotation" },
   UNKNOWN_LOG_LEVEL: { severity: "error", category: "annotation" },
   MISSING_LOG_LEVEL: { severity: "error", category: "annotation" },
@@ -268,6 +270,8 @@ export type RegistryTypeAssertions = [
       | "SOURCE_LOAD_FAILED"
       | "SOURCE_HTTP_ERROR"
       | "SOURCE_PARSE_FAILED"
+      | "DUPLICATE_SOURCE_IDENTITY"
+      | "EMPTY_SOURCE_IDENTITY"
       | "NO_TARGET"
       | "UNKNOWN_LOG_LEVEL"
       | "MISSING_LOG_LEVEL"
