@@ -70,3 +70,6 @@ export type {
 export { createCSSConsole } from "./browser/facade/index.ts";
 export type { CSSConsole, CSSConsoleOptions, ScanOptions } from "./browser/facade/index.ts";
 export type { RawSourceInput } from "./browser/sources/index.ts";
+
+export { createConsoleAdapter } from "./browser/console/index.ts";
+export type { ConsoleAdapterOptions, ConsoleOutput } from "./browser/console/index.ts";

@@ -391,14 +391,13 @@ test("a color-valued property renders a swatch whose plain text still carries th
 
     const format = String(line.args[0]);
 
-    // The format string opens a styled run, and one argument styles it with
-    // the resolved color as a background.
-    expect(format).toContain("%c");
-    expect(
-      line.args.some(
-        (argument) => typeof argument === "string" && argument.includes(`background: ${resolved}`),
-      ),
-    ).toBe(true);
+    // The swatch is a discrete styled run beside the text rather than a
+    // styling of the whole line: the format opens with a styled run, closes
+    // it with a second directive whose style argument is empty, and only then
+    // carries the text, so the text itself stays readable.
+    expect(format).toMatch(/^%c +%c /);
+    expect(String(line.args[1])).toContain(`background: ${resolved}`);
+    expect(line.args[2]).toBe("");
 
     // No information exists only in styling: with the styling directives
     // removed, the text still names the resolved value.
@@ -477,28 +476,45 @@ test("time and timeEnd bracket each scan, and the completion line carries the su
 
 test("a transform resolving to a 2D matrix renders its decomposition beside the raw value", async () => {
   const css = `/* css-console: log transform */
-.console-matrix { transform: translateX(88px); }`;
+.console-matrix { transform: translateX(88px); }
 
-  await withFixture(`<p class="console-matrix"></p>`, css, async (host) => {
-    const run = await runScan("console-matrix", css);
-    const body = groupBody(run.calls, titleFor(run.starts, ".console-matrix"));
-    const resolved = getComputedStyle(elementIn(host, ".console-matrix")).transform;
+/* css-console: log transform */
+.console-degenerate { transform: scale(0); }`;
 
-    // The engine resolves a transform to a matrix rather than to the function
-    // the author wrote, which is why the decomposition exists at all.
-    expect(resolved).toBe("matrix(1, 0, 0, 1, 88, 0)");
+  await withFixture(
+    `<p class="console-matrix"></p><p class="console-degenerate"></p>`,
+    css,
+    async (host) => {
+      const run = await runScan("console-matrix", css);
+      const body = groupBody(run.calls, titleFor(run.starts, ".console-matrix"));
+      const resolved = getComputedStyle(elementIn(host, ".console-matrix")).transform;
 
-    const text = lineText(body[0] as ConsoleCall);
-    const decomposition = expectedDecomposition(resolved);
+      // The engine resolves a transform to a matrix rather than to the function
+      // the author wrote, which is why the decomposition exists at all.
+      expect(resolved).toBe("matrix(1, 0, 0, 1, 88, 0)");
 
-    expect(decomposition).toBe(" — translate(88px, 0px) scale(1, 1) rotate(0deg)");
-    expect(text).toContain(resolved);
-    expect(text).toContain(decomposition);
+      const text = lineText(body[0] as ConsoleCall);
+      const decomposition = expectedDecomposition(resolved);
 
-    // The raw value stays authoritative by rendering first; the decomposition
-    // is appended to it rather than substituted for it.
-    expect(text.indexOf(resolved)).toBeLessThan(text.indexOf(decomposition));
-  });
+      expect(decomposition).toBe(" — translate(88px, 0px) scale(1, 1) rotate(0deg)");
+      expect(text).toContain(resolved);
+      expect(text).toContain(decomposition);
+
+      // The raw value stays authoritative by rendering first; the decomposition
+      // is appended to it rather than substituted for it.
+      expect(text.indexOf(resolved)).toBeLessThan(text.indexOf(decomposition));
+
+      // A degenerate matrix has no finite decomposition: scale(0) collapses
+      // both axes, the determinant is zero, and the formulas divide by zero,
+      // so the line carries the engine's raw value and nothing appended.
+      const degenerateResolved = getComputedStyle(elementIn(host, ".console-degenerate")).transform;
+      const degenerateBody = groupBody(run.calls, titleFor(run.starts, ".console-degenerate"));
+      const degenerateText = lineText(degenerateBody[0] as ConsoleCall);
+
+      expect(degenerateText).toContain(degenerateResolved);
+      expect(degenerateText).not.toContain(" — translate(");
+    },
+  );
 });
 
 test("an output whose every method throws does not prevent the scan from completing", async () => {
