@@ -1,0 +1,1791 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>css-console — Phase 3 manual testing</title>
+    <script>
+      // This page styles itself through document.adoptedStyleSheets instead
+      // of a <style> element, and the choice is load-bearing rather than
+      // stylistic: source discovery reads <style> and <link> elements
+      // (src/browser/sources/index.ts), and the playground below scans the
+      // whole document through the public facade, which has no root option.
+      // A <style> element here would appear in every scan's discovered
+      // bucket. An adopted stylesheet is invisible to discovery, so the only
+      // sources a scan finds are the ones a scenario loaded.
+      const PAGE_CSS = `
+        :root {
+          color-scheme: light dark;
+          --bg: #ffffff;
+          --fg: #1a1a1a;
+          --muted: #59636e;
+          --border: #d1d9e0;
+          --surface: #f6f8fa;
+          --accent: #0757ba;
+          --pass: #1a7f37;
+          --warn: #9a6700;
+          --code-bg: #f0f2f5;
+        }
+        @media (prefers-color-scheme: dark) {
+          :root {
+            --bg: #0d1117;
+            --fg: #e6edf3;
+            --muted: #9198a1;
+            --border: #3d444d;
+            --surface: #151b23;
+            --accent: #4493f8;
+            --pass: #3fb950;
+            --warn: #d29922;
+            --code-bg: #1c2128;
+          }
+        }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0 auto;
+          max-width: 60rem;
+          padding: 2rem 1.25rem 6rem;
+          background: var(--bg);
+          color: var(--fg);
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+          line-height: 1.6;
+        }
+        h1, h2, h3 { line-height: 1.25; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+        h2 {
+          margin-top: 3rem;
+          padding-top: 1rem;
+          border-top: 1px solid var(--border);
+          font-size: 1.35rem;
+        }
+        h3 { font-size: 1.05rem; margin: 0; }
+        p.lede { color: var(--muted); margin-top: 0; }
+        code, pre, .mono {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 0.85em;
+        }
+        code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+        pre {
+          background: var(--code-bg);
+          padding: 0.75rem 1rem;
+          border-radius: 8px;
+          overflow-x: auto;
+        }
+        pre code { background: none; padding: 0; }
+        .scenario {
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          margin: 1.25rem 0;
+          overflow: hidden;
+        }
+        .scenario header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.6rem 1rem;
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+        }
+        .scenario header h3 { flex: 1; }
+        .scenario .body { padding: 0.25rem 1rem 1rem; }
+        .scenario .expect {
+          border-left: 3px solid var(--accent);
+          padding: 0.25rem 0 0.25rem 1rem;
+          margin-top: 0.75rem;
+        }
+        .scenario .expect ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+        .scenario .expect li { margin: 0.3rem 0; }
+        .steps {
+          border-left: 3px solid var(--warn);
+          padding: 0.25rem 0 0.25rem 1rem;
+          margin-top: 0.75rem;
+        }
+        .steps ol { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+        button {
+          font: inherit;
+          padding: 0.35rem 0.9rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--surface);
+          color: var(--fg);
+          cursor: pointer;
+        }
+        button:hover { border-color: var(--accent); }
+        button.primary {
+          background: var(--accent);
+          border-color: var(--accent);
+          color: #fff;
+        }
+        label.field { display: inline-flex; align-items: center; gap: 0.4rem; }
+        #playground {
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          padding: 1rem;
+          background: var(--surface);
+        }
+        #playground .row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.6rem;
+          align-items: center;
+          margin: 0.6rem 0;
+        }
+        #playground textarea {
+          width: 100%;
+          min-height: 7rem;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 0.85rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--fg);
+          padding: 0.5rem;
+        }
+        #playground textarea.short { min-height: 3.4rem; }
+        #playground input[type="number"] {
+          width: 5.5rem;
+          font: inherit;
+          padding: 0.25rem 0.4rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--fg);
+        }
+        #playground select {
+          font: inherit;
+          padding: 0.25rem 0.4rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--fg);
+        }
+        #status { color: var(--muted); font-size: 0.85rem; }
+        #stage {
+          border: 1px dashed var(--border);
+          border-radius: 8px;
+          padding: 0.75rem;
+          margin: 0.75rem 0;
+          background: var(--bg);
+          min-height: 2rem;
+        }
+        #events { margin-top: 0.5rem; }
+        #events .event {
+          padding: 0.3rem 0.5rem;
+          border-bottom: 1px solid var(--border);
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 0.8rem;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        #events .kind {
+          display: inline-block;
+          min-width: 8.5em;
+          color: var(--muted);
+        }
+        #events .event.kind-record .kind { color: var(--pass); }
+        #events .event.kind-diagnostic .kind { color: var(--warn); }
+        #events .event.kind-summary .kind { color: var(--accent); }
+        #events .event.kind-error .kind { color: #d1242f; }
+        #raw-out {
+          max-height: 24rem;
+          overflow: auto;
+        }
+        body.offline #playground .row,
+        body.offline #playground textarea,
+        body.offline #stage,
+        body.offline #events {
+          display: none;
+        }
+        .pill {
+          display: inline-block;
+          background: var(--code-bg);
+          border-radius: 999px;
+          padding: 0 0.6em;
+          font-size: 0.8em;
+          color: var(--muted);
+        }
+      `;
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(PAGE_CSS);
+      document.adoptedStyleSheets = [sheet];
+    </script>
+  </head>
+  <body>
+    <h1>css-console — Phase 3 manual testing</h1>
+    <p class="lede">
+      Source discovery, identity, linked stylesheets, raw sources, gating, exclusion, and the scan
+      lifecycle, exercised through the one public entry point: <code>createCSSConsole()</code>.
+    </p>
+
+    <h2 id="how">How to use this document</h2>
+    <p>
+      Serve the repository with <code>vp dev</code> and open
+      <code>http://localhost:5173/manual-testing-phase3.html</code> (any port works). Each scenario
+      has a <strong>Load</strong> button that fills the playground: the markup, the raw sources, and
+      the instance options. Press <strong>Run scan</strong> and compare the event stream and the
+      summary against the expectations. Opened from <code>file://</code>, the page degrades to
+      reading mode.
+    </p>
+    <p>
+      Two things are different from the Phase 2 document. First, the playground drives the public
+      facade, so a scan collects sources from the <em>whole document</em> — there is no root option
+      on <code>createCSSConsole()</code>. This page therefore styles itself through
+      <code>document.adoptedStyleSheets</code>, which discovery does not read, so the only
+      <code>&lt;style&gt;</code> and <code>&lt;link&gt;</code> elements a scan finds are the ones
+      the loaded scenario put on the stage. Second, an instance is kept alive across
+      <strong>Run scan</strong> presses and is recreated only when the options, the raw sources, or
+      the <strong>New instance</strong> button change it — source identity lives per instance, and
+      several scenarios depend on that.
+    </p>
+    <p>
+      The stage markup is re-applied only when the markup field changed since the last run. That is
+      deliberate too: identity continuity (scenario 2.6) needs the same live elements across two
+      scans, and re-injecting the markup would replace them with new ones.
+    </p>
+    <p><button id="reset-ticks">Reset all verified checkboxes</button></p>
+
+    <h2 id="playground-h">The playground</h2>
+    <div id="playground">
+      <div class="row">
+        <span id="env" class="mono">detecting environment…</span>
+      </div>
+      <div class="row"><span id="status" class="mono">no instance yet</span></div>
+      <label
+        >Stage markup (may contain <code>&lt;style&gt;</code> and
+        <code>&lt;link&gt;</code> elements)</label
+      >
+      <textarea id="markup" spellcheck="false"></textarea>
+      <label
+        >Raw sources (JSON array of <code>{ "id": "…", "css": "…" }</code>, empty for none)</label
+      >
+      <textarea id="raw-sources" class="short" spellcheck="false"></textarea>
+      <label>Exclude patterns (one per line)</label>
+      <textarea id="exclude" class="short" spellcheck="false"></textarea>
+      <div class="row">
+        <label class="field"
+          >sources
+          <select id="sources">
+            <option value="document">document</option>
+            <option value="none">none</option>
+          </select>
+        </label>
+        <label class="field"
+          >maxElements
+          <input id="max" type="number" min="0" step="1" placeholder="default" />
+        </label>
+        <label class="field"><input type="checkbox" id="fonts" /> waitForFonts</label>
+      </div>
+      <div class="row">
+        <button class="primary" id="run">Run scan</button>
+        <button id="run-two">Run two scans</button>
+        <button id="run-abort">Run + abort</button>
+        <button id="new-instance">New instance</button>
+        <button id="dispose">Dispose instance</button>
+      </div>
+      <div class="row">
+        <button id="remove-first">Remove first fixture style</button>
+        <button id="disable-first">Disable first fixture style (IDL)</button>
+        <button id="clear">Clear output</button>
+        <label class="field"><input type="checkbox" id="raw-toggle" /> show raw JSON</label>
+      </div>
+      <label>Stage (fixtures render here; a scan matches the live document)</label>
+      <div id="stage"></div>
+      <div id="events"></div>
+      <pre id="raw-out" hidden></pre>
+    </div>
+
+    <h2 id="s-facade">1. The facade</h2>
+    <p>
+      <code>createCSSConsole()</code> is the whole public API: construct with configuration,
+      <code>subscribe()</code> for live events, <code>scan()</code> for a summary carrying every
+      record and diagnostic, and <code>dispose()</code> when done. Construction is side-effect free
+      beyond validation — nothing reads the document until <code>scan()</code>.
+    </p>
+
+    <div class="scenario" data-id="facade-basics">
+      <header>
+        <h3>1.1 One scan through the public API</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.facade-solo { color: rgb(1, 2, 3); }
+&lt;/style&gt;
+&lt;p class="facade-solo"&gt;probe me&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Event order: <code>probe-start</code>, <code>record</code>,
+              <code>probe-summary</code>, then one final <code>summary</code> event.
+            </li>
+            <li>The record's <code>color</code> resolves to <code>rgb(1, 2, 3)</code>.</li>
+            <li>
+              Summary sources:
+              <code>{ discovered: 1, compiled: 1, failed: 0, excluded: 0 }</code>; probes
+              <code>{ compiled: 1, evaluated: 1, skipped: 0 }</code>; a non-negative
+              <code>durationMs</code>.
+            </li>
+            <li>
+              The probe-start names its source as <code>inline:style-&lt;hash&gt;</code> — the
+              anonymous style was named by hashing its content.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="facade-validation">
+      <header>
+        <h3>1.2 Configuration errors fail construction, not the scan</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>Load, then set <code>maxElements</code> to <code>-1</code>.</li>
+            <li>Press <strong>New instance</strong> (or <strong>Run scan</strong>).</li>
+            <li>Set it to <code>2.5</code> and press <strong>New instance</strong> again.</li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.validated { color: rgb(3, 3, 3); }
+&lt;/style&gt;
+&lt;p class="validated"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              <code>-1</code> reports a <code>RangeError</code> and <code>2.5</code> reports a
+              <code>TypeError</code>, both at construction — no scan runs and no events appear.
+            </li>
+            <li>Restoring a valid value (or clearing the field) constructs and scans normally.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-identity">2. Inline sources and identity</h2>
+    <p>
+      An anonymous <code>&lt;style&gt;</code> is named <code>style-&lt;hash&gt;</code> from its
+      content; an author can name one with the <code>data-css-console-source</code> attribute, and
+      that name is honored verbatim. Identity is visible in the stream as the probe-start's source
+      URL: <code>inline:&lt;id&gt;</code>. The scanner never writes to the document, so generated
+      names are never stamped onto elements.
+    </p>
+
+    <div class="scenario" data-id="id-anonymous">
+      <header>
+        <h3>2.1 An anonymous style is named by its content hash</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.anon { color: rgb(7, 7, 7); }
+&lt;/style&gt;
+&lt;p class="anon"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>The probe-start's source URL is <code>inline:style-&lt;hash&gt;</code>.</li>
+            <li>
+              Run again, and press <strong>New instance</strong> and run once more: the name is
+              identical every time, because the hash depends only on the CSS text. Reload the page
+              and run again — still the same name. That is what keeps reports comparable across page
+              loads.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="id-attribute">
+      <header>
+        <h3>2.2 The identity attribute wins, verbatim</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style data-css-console-source="brand tokens (v2)"&gt;
+/* css-console: log color */
+.branded-source { color: rgb(9, 0, 9); }
+&lt;/style&gt;
+&lt;p class="branded-source"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The probe-start's source URL is <code>inline:brand tokens (v2)</code> — the value is
+              not trimmed, normalized, prefixed, or hashed. An author who names a source is naming
+              it for a report they intend to read.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="id-empty-attr">
+      <header>
+        <h3>2.3 An empty identity attribute is treated as absent</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style data-css-console-source=""&gt;
+/* css-console: log color */
+.unnamed { color: rgb(5, 5, 5); }
+&lt;/style&gt;
+&lt;p class="unnamed"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The source is named <code>inline:style-&lt;hash&gt;</code>, exactly as if the
+              attribute were missing — an empty string is not a request for an empty identifier,
+              which would make every report about this source illegible.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="id-twins">
+      <header>
+        <h3>2.4 Two byte-identical anonymous styles: a positional suffix</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.twin { color: rgb(2, 4, 6); }
+&lt;/style&gt;
+&lt;style&gt;
+/* css-console: log color */
+.twin { color: rgb(2, 4, 6); }
+&lt;/style&gt;
+&lt;p class="twin"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Two probe-starts: the first source is <code>inline:style-&lt;hash&gt;</code>, the
+              second <code>inline:style-&lt;hash&gt;-2</code>. Identical content hashes identically;
+              the counter is positional, by document order within one discovery.
+            </li>
+            <li>
+              No diagnostic — the suffix already separated them. This is documented behavior, not a
+              defect: nothing this module reads can tell the two elements apart, and an author who
+              needs them told apart supplies the identity attribute.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="id-duplicate">
+      <header>
+        <h3>2.5 A duplicated author identity is reported, never repaired</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style data-css-console-source="tokens"&gt;
+/* css-console: log color */
+.dup-a { color: rgb(1, 1, 1); }
+&lt;/style&gt;
+&lt;style data-css-console-source="tokens"&gt;
+/* css-console: log margin-left */
+.dup-b { margin-left: 4px; }
+&lt;/style&gt;
+&lt;p class="dup-a"&gt;&lt;/p&gt;&lt;p class="dup-b"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>DUPLICATE_SOURCE_IDENTITY</code> diagnostic, warning severity, details
+              <code>identity: "tokens", holders: 2</code>.
+            </li>
+            <li>
+              Both probe-starts still name their source <code>inline:tokens</code> — a name a human
+              chose is never rewritten, because suffixing one would silently attribute findings to a
+              name no author wrote, and which element lost its name would depend on document order.
+            </li>
+            <li>Both probes evaluate normally; a duplicate identity does not stop a scan.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="id-continuity">
+      <header>
+        <h3>2.6 Identity continuity is per instance</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>
+              Load and run. Note the two names: <code>…&lt;hash&gt;</code> and <code>…-2</code>.
+            </li>
+            <li>
+              Press <strong>Remove first fixture style</strong>, then run again (same instance, do
+              not touch the inputs).
+            </li>
+            <li>Press <strong>New instance</strong> and run a third time.</li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.continuity { color: rgb(8, 8, 8); }
+&lt;/style&gt;
+&lt;style&gt;
+/* css-console: log color */
+.continuity { color: rgb(8, 8, 8); }
+&lt;/style&gt;
+&lt;p class="continuity"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Run 2: the surviving style keeps its <code>-2</code> name. The instance remembers the
+              element itself (a <code>WeakMap</code>), so a report about it stays comparable with
+              the previous scan even though the element it was disambiguated against is gone.
+            </li>
+            <li>
+              Run 3: the fresh instance has no memory, so the survivor is named
+              <code>inline:style-&lt;hash&gt;</code> with no suffix.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-linked">3. Linked stylesheets</h2>
+    <p>
+      A <code>&lt;link rel="stylesheet"&gt;</code> is discovered, fetched, and named by its resolved
+      URL — no hash needed, because a URL is already stable across reloads. One failing link never
+      affects another source: fault isolation is by source. The fixture links below carry Vite's
+      <code>?direct</code> query because the dev server answers a plain <code>.css</code> path with
+      a JavaScript module wrapping the CSS; <code>?direct</code> returns the stylesheet text, the
+      same convention the browser test suite pins.
+    </p>
+
+    <div class="scenario" data-id="link-basic">
+      <header>
+        <h3>3.1 A linked stylesheet becomes a source named by its URL</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre
+          class="markup"
+        ><code>&lt;link rel="stylesheet" href="/manual-testing-phase3.css?direct"&gt;
+&lt;p class="linked-probe"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One record: <code>color: rgb(20, 40, 60)</code>, label <code>linked</code>, from the
+              probe-start whose source URL is the absolute
+              <code>http://…/manual-testing-phase3.css?direct</code>.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 1, compiled: 1, failed: 0, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="link-mixed-case">
+      <header>
+        <h3>3.2 A mixed-case rel is still a stylesheet</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre
+          class="markup"
+        ><code>&lt;link rel="StyleSheet" href="/manual-testing-phase3.css?direct"&gt;
+&lt;p class="linked-probe"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Identical output to 3.1. Link relationship keywords are ASCII case-insensitive and the
+              engine applies this stylesheet, so discovery matches it too — even though the DOM's
+              own <code>relList.contains("stylesheet")</code> answers <code>false</code> for it,
+              because <code>relList</code> is token-exact.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="link-404">
+      <header>
+        <h3>3.3 An HTTP error is a diagnostic, not a crash</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;link rel="stylesheet" href="/phase3-no-such-file.css"&gt;
+&lt;style&gt;
+/* css-console: log color */
+.survivor { color: rgb(4, 4, 4); }
+&lt;/style&gt;
+&lt;p class="survivor"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>SOURCE_HTTP_ERROR</code> diagnostic, error severity, details carrying
+              <code>status: 404</code>, <code>statusText: "Not Found"</code>, and the absolute URL.
+              No location — a transport failure has no CSS position.
+            </li>
+            <li>
+              The inline style still compiles and its record still arrives. Summary sources:
+              <code>{ discovered: 2, compiled: 1, failed: 1, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="link-unreachable">
+      <header>
+        <h3>3.4 An unreachable host fails without attributing a cause</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre
+          class="markup"
+        ><code>&lt;link rel="stylesheet" href="https://css-console-phase3.invalid/x.css"&gt;
+&lt;p&gt;nothing to probe&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>SOURCE_LOAD_FAILED</code> diagnostic with details
+              <code>error: "TypeError"</code>, followed by the diagnostic's own message naming the
+              likely causes and pointing out that none can be attributed with certainty.
+            </li>
+            <li>
+              The <code>TypeError</code> is the browser's, not TypeScript's: the Fetch specification
+              rejects an unmakeable request with a <code>TypeError</code> carrying no detail,
+              precisely so a page cannot probe why a request was blocked. A cross-origin block, a
+              CSP restriction, and a network failure are therefore indistinguishable from inside the
+              page. The details record that engine fact verbatim rather than replacing it with a
+              friendlier guess; the message beside it does the explaining. Check the network panel
+              for the real cause.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 1, compiled: 0, failed: 1, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="link-shared-url">
+      <header>
+        <h3>3.5 Two links to one URL: two sources, one request</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre
+          class="markup"
+        ><code>&lt;link rel="stylesheet" href="/manual-testing-phase3.css?direct"&gt;
+&lt;link rel="stylesheet" href="/manual-testing-phase3.css?direct"&gt;
+&lt;p class="linked-probe"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Two probe-starts: the first source is the URL itself, the second is the URL with a
+              <code>-2</code> suffix — a report attributes a finding to the link element that
+              carried it.
+            </li>
+            <li>
+              Open the network panel before running: the stylesheet is requested once per scan by
+              css-console (the fetch), not once per link.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 2, compiled: 2, failed: 0, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-raw">4. Raw sources</h2>
+    <p>
+      A caller can hand CSS to the scanner directly: <code>rawSources</code> is an array of
+      <code>{ id, css }</code> objects, scanned beside the discovered sources — or instead of them,
+      with <code>sources: "none"</code>. A raw source's probes still match the live document,
+      because what is scanned and what is matched are different questions.
+    </p>
+
+    <div class="scenario" data-id="raw-basic">
+      <header>
+        <h3>4.1 A raw source is scanned and matches the live document</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre
+          class="markup"
+        ><code>&lt;p class="raw-target"&gt;matched by a raw source&lt;/p&gt;</code></pre>
+        <pre
+          class="raw"
+        ><code>[{ "id": "tokens", "css": "/* css-console: log margin-left */\n.raw-target { margin-left: 6px; }" }]</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>The probe-start's source URL is <code>raw:tokens</code>.</li>
+            <li>
+              One record with <code>margin-left: 0px</code> — not the authored <code>6px</code>. A
+              raw source is described to the scanner, never applied to the page, so the element
+              really has no margin, and the resolved value is what the live element computes. The
+              authored <code>6px</code> is still in the record's raw JSON (toggle it on) as the
+              value's <code>authored</code> field. Scanned and applied are different things, and
+              this scenario is the proof.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 1, compiled: 1, failed: 0, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="raw-none-mode">
+      <header>
+        <h3>4.2 sources: "none" scans only what the caller supplied</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.ignored-by-scan { color: rgb(6, 6, 6); }
+&lt;/style&gt;
+&lt;p class="ignored-by-scan raw-target"&gt;&lt;/p&gt;</code></pre>
+        <pre
+          class="raw"
+        ><code>[{ "id": "only-me", "css": "/* css-console: log color */\n.raw-target { color: rgb(11, 12, 13); }" }]</code></pre>
+        <pre class="config"><code>{ "sources": "none" }</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The inline style on the stage is invisible to the scan: no
+              <code>inline:</code> probe-start appears, and the summary's discovered bucket counts
+              only the raw input —
+              <code>{ discovered: 1, compiled: 1, failed: 0, excluded: 0 }</code>.
+            </li>
+            <li>
+              The raw probe still matched the live stage element, and its resolved color is
+              <code>rgb(6, 6, 6)</code> — the color the <em>unscanned</em> inline style painted,
+              because the browser applies that style regardless of what the scan collects. The scan
+              ignoring a source never turns it off.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="raw-empty-id">
+      <header>
+        <h3>4.3 An empty raw id is rejected, with its index</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;p class="raw-target"&gt;&lt;/p&gt;</code></pre>
+        <pre class="raw"><code>[
+  { "id": "named", "css": "/* css-console: log color */\n.raw-target { color: rgb(1, 2, 3); }" },
+  { "id": "", "css": ".dropped { color: red; }" }
+]</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>EMPTY_SOURCE_IDENTITY</code> diagnostic, error severity, details
+              <code>index: 1</code> — the position in the supplied list, because an empty string
+              cannot itself name which input failed.
+            </li>
+            <li>
+              The empty-id input produces no source at all; css-console never generates a fallback
+              name for a raw source, because the caller is naming their own object, not an anonymous
+              document node.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 2, compiled: 1, failed: 1, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="raw-cross-duplicate">
+      <header>
+        <h3>4.4 Duplicate identities are detected across source kinds</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style data-css-console-source="tokens"&gt;
+/* css-console: log color */
+.cross-a { color: rgb(2, 2, 2); }
+&lt;/style&gt;
+&lt;p class="cross-a"&gt;&lt;/p&gt;&lt;p class="cross-b"&gt;&lt;/p&gt;</code></pre>
+        <pre
+          class="raw"
+        ><code>[{ "id": "tokens", "css": "/* css-console: log color */\n.cross-b { color: rgb(3, 3, 3); }" }]</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>DUPLICATE_SOURCE_IDENTITY</code> warning with
+              <code>identity: "tokens", holders: 2</code> — an inline style and a raw source sharing
+              one name is the same ambiguity as two styles sharing it. Note the two source URLs
+              differ (<code>inline:tokens</code> and <code>raw:tokens</code>); it is the identity
+              that collides.
+            </li>
+            <li>Both sources still compile and both records arrive.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-gating">5. Gating and exclusion</h2>
+    <p>
+      Discovery reports every source; the gate then sorts them into active, inactive, and excluded.
+      Inactive means the browser is not reading the source right now — a non-matching
+      <code>media</code> attribute, or a sheet disabled through the IDL property. Excluded is the
+      caller's own decision, by URL pattern: <code>*</code> matches within a path segment,
+      <code>**</code> crosses <code>/</code>, everything else is literal, and a pattern without a
+      wildcard is an exact match. The synthesized <code>inline:</code> and <code>raw:</code> URLs
+      are excludable like any other.
+    </p>
+
+    <div class="scenario" data-id="gate-print">
+      <header>
+        <h3>5.1 A print-media style is discovered but inactive</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style media="print"&gt;
+/* css-console: log color */
+.print-only { color: rgb(9, 9, 9); }
+&lt;/style&gt;
+&lt;style&gt;
+/* css-console: log color */
+.screen-too { color: rgb(1, 1, 1); }
+&lt;/style&gt;
+&lt;p class="print-only screen-too"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Only the second style produces events. The print style is counted in
+              <code>discovered</code> and in no other bucket — the gap between
+              <code>discovered</code> and the other three buckets is the inactive sources.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 2, compiled: 1, failed: 0, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="gate-disabled">
+      <header>
+        <h3>5.2 The disabled attribute is inert; the IDL property is real</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>Load and run: the style scans despite its <code>disabled</code> attribute.</li>
+            <li>Press <strong>Disable first fixture style (IDL)</strong>, then run again.</li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style disabled&gt;
+/* css-console: log color */
+.maybe-disabled { color: rgb(3, 1, 4); }
+&lt;/style&gt;
+&lt;p class="maybe-disabled"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Run 1: the probe evaluates and the element renders in <code>rgb(3, 1, 4)</code>. A
+              <code>disabled</code> <em>attribute</em> on a style element does nothing in the engine
+              — pinned in the browser suite — so the gate, which reads what the engine reads, treats
+              the sheet as active.
+            </li>
+            <li>
+              Run 2: after <code>element.disabled = true</code> (the IDL property, which is real),
+              the stage element loses its color, the style is inactive, and the summary is
+              <code>{ discovered: 1, compiled: 0, failed: 0, excluded: 0 }</code> with no probe
+              events.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="gate-exclude">
+      <header>
+        <h3>5.3 Exclusion by pattern, across all three source kinds</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style data-css-console-source="keep-me"&gt;
+/* css-console: log color */
+.kept { color: rgb(1, 2, 3); }
+&lt;/style&gt;
+&lt;style data-css-console-source="drop-me"&gt;
+/* css-console: log color */
+.dropped { color: rgb(4, 5, 6); }
+&lt;/style&gt;
+&lt;link rel="stylesheet" href="/manual-testing-phase3.css?direct"&gt;
+&lt;p class="kept dropped linked-probe"&gt;&lt;/p&gt;</code></pre>
+        <pre
+          class="config"
+        ><code>{ "exclude": ["inline:drop-me", "**/manual-testing-phase3.css*"] }</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Only <code>inline:keep-me</code> produces events. <code>inline:drop-me</code> is an
+              exact-match exclusion (no wildcard, whole-URL match); the link is excluded by a
+              <code>**</code> pattern that crosses path segments, with a trailing
+              <code>*</code> because the fixture URL carries the <code>?direct</code> query.
+            </li>
+            <li>
+              The one record resolves <code>color: rgb(20, 40, 60)</code> — the
+              <em>linked</em> stylesheet's color, not the probed rule's <code>rgb(1, 2, 3)</code>.
+              Exclusion stops scanning, not application: the engine still loads and applies the link
+              element. And the guard reports the value uncontested, because the guard reads compiled
+              CSS and a source the caller excluded is never compiled — its declarations are
+              invisible to the guard. Excluding a source narrows what a report can explain.
+            </li>
+            <li>
+              The excluded link is never fetched — confirm in the network panel that no request for
+              the stylesheet leaves the page.
+            </li>
+            <li>
+              Summary sources: <code>{ discovered: 3, compiled: 1, failed: 0, excluded: 2 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-isolation">6. Failure isolation</h2>
+    <p>
+      Fault isolation is by source: one unparseable stylesheet, one failing request, or one rejected
+      raw input produces a diagnostic and costs nothing else. The composite scenario at the end
+      exercises every summary bucket in one scan, mirroring the browser suite's own six-candidate
+      fixture.
+    </p>
+
+    <div class="scenario" data-id="fail-parse">
+      <header>
+        <h3>6.1 A parse failure is a diagnostic with a position</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+.broken {
+&lt;/style&gt;
+&lt;style&gt;
+/* css-console: log color */
+.intact { color: rgb(2, 2, 2); }
+&lt;/style&gt;
+&lt;p class="intact"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              One <code>SOURCE_PARSE_FAILED</code> diagnostic, error severity, carrying the parser's
+              own reason (an unclosed block) and a position inside the broken source.
+            </li>
+            <li>The second style compiles and its record arrives untouched.</li>
+            <li>
+              Summary sources: <code>{ discovered: 2, compiled: 1, failed: 1, excluded: 0 }</code>.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="fail-composite">
+      <header>
+        <h3>6.2 Every bucket at once: the six-candidate scan</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.counted { color: rgb(1, 2, 3); }
+&lt;/style&gt;
+&lt;style media="print"&gt;
+/* css-console: log color */
+.counted { color: rgb(9, 9, 9); }
+&lt;/style&gt;
+&lt;style&gt;
+.broken {
+&lt;/style&gt;
+&lt;link rel="stylesheet" href="/phase3-excluded.css"&gt;
+&lt;link rel="stylesheet" href="/phase3-no-such-file.css"&gt;
+&lt;p class="counted raw-counted"&gt;&lt;/p&gt;</code></pre>
+        <pre
+          class="raw"
+        ><code>[{ "id": "raw-counted", "css": "/* css-console: log margin-left */\n.raw-counted { margin-left: 4px; }" }]</code></pre>
+        <pre class="config"><code>{ "exclude": ["**/phase3-excluded.css"] }</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Six candidates: three inline styles, two links, one raw input. Summary sources:
+              <code>{ discovered: 6, compiled: 2, failed: 2, excluded: 1 }</code> — the print style
+              is the one candidate in no bucket (inactive), the 404 link and the broken style
+              failed, and the excluded link was never fetched.
+            </li>
+            <li>
+              Diagnostics: <code>SOURCE_HTTP_ERROR</code> and <code>SOURCE_PARSE_FAILED</code>, and
+              no others.
+            </li>
+            <li>
+              Two records: <code>color: rgb(1, 2, 3)</code> from the compiling style, and
+              <code>margin-left: 0px</code> from the raw source — <code>0px</code> because raw CSS
+              is described, not applied (scenario 4.1).
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s-lifecycle">7. The scan lifecycle</h2>
+    <p>
+      Scans on one instance are serialized; an abort rejects with the engine's own
+      <code>AbortError</code> and emits no summary; <code>maxElements</code> truncates visibly; and
+      a disposed instance refuses further work while a scan already in flight still settles.
+    </p>
+
+    <div class="scenario" data-id="life-serialized">
+      <header>
+        <h3>7.1 Overlapping scans are serialized</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>
+              Load, then press <strong>Run two scans</strong> (it calls <code>scan()</code> twice
+              without awaiting the first).
+            </li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.serialized { color: rgb(7, 7, 7); }
+&lt;/style&gt;
+&lt;p class="serialized"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Two complete event sequences, one after the other: the second scan's
+              <code>probe-start</code> comes after the first scan's <code>summary</code>. Nothing
+              interleaves, so a subscriber can always tell which scan a record belongs to.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="life-abort">
+      <header>
+        <h3>7.2 An abort rejects the scan and delivers no summary</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>
+              Load, then press <strong>Run + abort</strong> (it calls <code>scan()</code> and aborts
+              the controller immediately).
+            </li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.aborted { color: rgb(6, 6, 6); }
+&lt;/style&gt;
+&lt;p class="aborted"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The scan promise rejects with <code>AbortError</code> (shown as a rejection line in
+              the output) and no <code>summary</code> event appears. An abort is the caller's
+              decision, not a finding about the document, so it produces no diagnostic either.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="life-max">
+      <header>
+        <h3>7.3 maxElements truncates visibly</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.limited { color: rgb(1, 2, 3); }
+&lt;/style&gt;
+&lt;ul&gt;
+  &lt;li class="limited"&gt;one&lt;/li&gt;
+  &lt;li class="limited"&gt;two&lt;/li&gt;
+  &lt;li class="limited"&gt;three&lt;/li&gt;
+  &lt;li class="limited"&gt;four&lt;/li&gt;
+  &lt;li class="limited"&gt;five&lt;/li&gt;
+&lt;/ul&gt;</code></pre>
+        <pre class="config"><code>{ "maxElements": 2 }</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              Two records, and the probe-summary reports
+              <code>matches { total: 5, evaluated: 2, omitted: 3 }</code> — truncation is counted,
+              never silent. The scan summary's matches carry the same totals.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="life-fonts">
+      <header>
+        <h3>7.4 waitForFonts is an option that cannot deadlock a settled page</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.fonted { color: rgb(3, 3, 3); }
+&lt;/style&gt;
+&lt;p class="fonted"&gt;&lt;/p&gt;</code></pre>
+        <pre class="config"><code>{ "waitForFonts": true }</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The scan completes normally: <code>document.fonts.ready</code> resolves once loading
+              settles, and on a page with no pending font loads it resolves promptly. The wait is
+              also abortable — <strong>Run + abort</strong> still rejects immediately.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="scenario" data-id="life-dispose">
+      <header>
+        <h3>7.5 A disposed instance refuses further work</h3>
+        <button class="load">Load</button>
+        <label><input type="checkbox" class="tick" /> verified</label>
+      </header>
+      <div class="body">
+        <div class="steps">
+          <strong>Steps</strong>
+          <ol>
+            <li>Load and run once normally.</li>
+            <li>Press <strong>Dispose instance</strong>, then <strong>Run scan</strong> again.</li>
+          </ol>
+        </div>
+        <pre class="markup"><code>&lt;style&gt;
+/* css-console: log color */
+.disposable { color: rgb(2, 2, 2); }
+&lt;/style&gt;
+&lt;p class="disposable"&gt;&lt;/p&gt;</code></pre>
+        <div class="expect">
+          <strong>Expected</strong>
+          <ul>
+            <li>
+              The second run reports a thrown error (the harness shows it as an error line) —
+              <code>scan()</code> on a disposed instance throws rather than scanning. Press
+              <strong>New instance</strong> to continue.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      const STORAGE_PREFIX = "cssc-phase3-";
+
+      function readStored(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      }
+
+      function writeStored(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // Storage is unavailable; verified ticks simply do not persist.
+        }
+      }
+
+      for (const scenario of document.querySelectorAll(".scenario")) {
+        const id = scenario.dataset.id;
+        const tick = scenario.querySelector(".tick");
+
+        tick.checked = readStored(STORAGE_PREFIX + id) === "true";
+        tick.addEventListener("change", () => {
+          writeStored(STORAGE_PREFIX + id, String(tick.checked));
+        });
+
+        scenario.querySelector(".load")?.addEventListener("click", () => {
+          const markup = scenario.querySelector("pre.markup code")?.textContent ?? "";
+          const raw = scenario.querySelector("pre.raw code")?.textContent ?? "";
+          const configText = scenario.querySelector("pre.config code")?.textContent ?? "{}";
+          let config = {};
+
+          try {
+            config = JSON.parse(configText);
+          } catch {
+            config = {};
+          }
+
+          document.getElementById("markup").value = markup;
+          document.getElementById("raw-sources").value = raw;
+          document.getElementById("exclude").value = (config.exclude ?? []).join("\n");
+          document.getElementById("sources").value = config.sources ?? "document";
+          document.getElementById("max").value =
+            config.maxElements === undefined ? "" : String(config.maxElements);
+          document.getElementById("fonts").checked = config.waitForFonts === true;
+          // Each scenario starts on a fresh instance, so identity state never
+          // leaks between scenarios; the steps inside one scenario share the
+          // instance until they say otherwise.
+          forceNextInstance = true;
+          document.getElementById("playground").scrollIntoView({ behavior: "smooth" });
+        });
+      }
+
+      document.getElementById("reset-ticks").addEventListener("click", () => {
+        try {
+          for (const key of Object.keys(localStorage)) {
+            if (key.startsWith(STORAGE_PREFIX)) {
+              localStorage.removeItem(key);
+            }
+          }
+        } catch {
+          // Storage is unavailable, so there is nothing persisted to clear.
+        }
+
+        for (const tick of document.querySelectorAll(".tick")) {
+          tick.checked = false;
+        }
+      });
+
+      const env = document.getElementById("env");
+      let createCSSConsole = null;
+
+      if (location.protocol === "file:") {
+        document.body.classList.add("offline");
+        env.textContent = "reading mode (file://) — playground disabled";
+      } else {
+        try {
+          const api = await import("/src/index.ts");
+
+          createCSSConsole = api.createCSSConsole;
+          env.textContent =
+            "live mode — " +
+            navigator.userAgent.replace(
+              /^.*?(Chrome\/[\d.]+|Firefox\/[\d.]+|Version\/[\d.]+ Safari).*$/,
+              "$1",
+            ) +
+            " — public API: createCSSConsole()";
+        } catch (error) {
+          document.body.classList.add("offline");
+          env.textContent = "module import failed — serve this page with vp dev (" + error + ")";
+        }
+      }
+
+      const stage = document.getElementById("stage");
+      const eventsOut = document.getElementById("events");
+      const rawOut = document.getElementById("raw-out");
+      const status = document.getElementById("status");
+      const rawToggle = document.getElementById("raw-toggle");
+
+      let instance = null;
+      let instanceNumber = 0;
+      let instanceFingerprint = null;
+      let scansRun = 0;
+      let appliedMarkup = null;
+      let rawEvents = [];
+      let forceNextInstance = false;
+
+      rawToggle.addEventListener("change", () => {
+        rawOut.hidden = !rawToggle.checked;
+      });
+
+      function elementSummary(element) {
+        if (!(element instanceof Element)) {
+          return String(element);
+        }
+
+        const id = element.id ? "#" + element.id : "";
+        const classes = element.classList.length ? "." + [...element.classList].join(".") : "";
+
+        return "<" + element.tagName.toLowerCase() + id + classes + ">";
+      }
+
+      function guardText(guard) {
+        if (!guard) {
+          return "";
+        }
+
+        return guard.contested
+          ? " ⚠ contested [" + guard.reasons.join(", ") + "]"
+          : " ✓ uncontested";
+      }
+
+      function describe(event) {
+        if (event.kind === "diagnostic") {
+          const where = event.diagnostic.source
+            ? " @ " + event.diagnostic.source.url + ":" + event.diagnostic.source.start.line
+            : "";
+          const details = event.diagnostic.details
+            ? " — " +
+              Object.entries(event.diagnostic.details)
+                .map(([key, value]) => key + ": " + JSON.stringify(value))
+                .join(", ")
+            : "";
+
+          // The message is the diagnostic's own explanation, from the
+          // registry. Rendering it beside the raw details keeps facts like a
+          // rejection's error name from having to explain themselves.
+          return (
+            event.diagnostic.code +
+            " (" +
+            event.diagnostic.severity +
+            ")" +
+            where +
+            details +
+            "\n  " +
+            event.diagnostic.message
+          );
+        }
+
+        if (event.kind === "probe-start") {
+          const probe = event.probe;
+          const name = probe.probeKind === "value" ? probe.selector : probe.functionName;
+
+          return (
+            probe.probeKind +
+            " probe " +
+            name +
+            (probe.label ? " [" + probe.label + "]" : "") +
+            "\n  source: " +
+            probe.source.url
+          );
+        }
+
+        if (event.kind === "probe-summary") {
+          const matches = event.summary.matches;
+
+          return (
+            event.summary.records +
+            " record(s), " +
+            event.summary.diagnostics +
+            " diagnostic(s), matches { total: " +
+            matches.total +
+            ", evaluated: " +
+            matches.evaluated +
+            ", omitted: " +
+            matches.omitted +
+            " }"
+          );
+        }
+
+        if (event.kind === "record") {
+          const record = event.record;
+          const target = elementSummary(record.target) + (record.pseudo ?? "");
+
+          if (record.kind === "function") {
+            return (
+              "function " +
+              record.functionName +
+              " → " +
+              record.callSite.property +
+              ": " +
+              record.resolved +
+              " on " +
+              target +
+              guardText(record.guard)
+            );
+          }
+
+          const values = record.values
+            .map((value) => value.name + ": " + value.resolved + guardText(value.guard))
+            .join("; ");
+
+          return record.kind + " " + target + " — " + values;
+        }
+
+        if (event.kind === "summary") {
+          const summary = event.summary;
+
+          return (
+            "sources { discovered: " +
+            summary.sources.discovered +
+            ", compiled: " +
+            summary.sources.compiled +
+            ", failed: " +
+            summary.sources.failed +
+            ", excluded: " +
+            summary.sources.excluded +
+            " }\n  probes { compiled: " +
+            summary.probes.compiled +
+            ", evaluated: " +
+            summary.probes.evaluated +
+            ", skipped: " +
+            summary.probes.skipped +
+            " }\n  matches { total: " +
+            summary.matches.total +
+            ", evaluated: " +
+            summary.matches.evaluated +
+            ", omitted: " +
+            summary.matches.omitted +
+            " }\n  " +
+            summary.records.length +
+            " record(s), " +
+            summary.diagnostics.length +
+            " diagnostic(s), durationMs: " +
+            summary.durationMs.toFixed(1)
+          );
+        }
+
+        return JSON.stringify(event);
+      }
+
+      function appendLine(kind, text) {
+        const line = document.createElement("div");
+        const chip = document.createElement("span");
+
+        line.className = "event kind-" + kind;
+        chip.className = "kind";
+        chip.textContent = kind;
+        line.append(chip, text);
+        eventsOut.append(line);
+      }
+
+      function appendEvent(event) {
+        appendLine(event.kind, describe(event));
+        rawEvents.push(event);
+        rawOut.textContent = JSON.stringify(
+          rawEvents,
+          (key, value) => (value instanceof Element ? elementSummary(value) : value),
+          1,
+        );
+      }
+
+      function currentOptions() {
+        const rawText = document.getElementById("raw-sources").value.trim();
+        let rawSources;
+
+        if (rawText !== "") {
+          rawSources = JSON.parse(rawText);
+        }
+
+        const excludeText = document.getElementById("exclude").value;
+        const exclude = excludeText
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line !== "");
+        const maxField = document.getElementById("max").value.trim();
+        const options = {
+          sources: document.getElementById("sources").value,
+        };
+
+        if (rawSources !== undefined) {
+          options.rawSources = rawSources;
+        }
+
+        if (exclude.length > 0) {
+          options.exclude = exclude;
+        }
+
+        if (maxField !== "") {
+          options.maxElements = Number(maxField);
+        }
+
+        if (document.getElementById("fonts").checked) {
+          options.waitForFonts = true;
+        }
+
+        return options;
+      }
+
+      function updateStatus() {
+        status.textContent =
+          instance === null
+            ? "no instance yet"
+            : "instance #" + instanceNumber + " — " + scansRun + " scan(s) run";
+      }
+
+      function ensureInstance(force) {
+        const options = currentOptions();
+        const fingerprint = JSON.stringify(options);
+        const mustCreate = force || forceNextInstance;
+
+        forceNextInstance = false;
+
+        if (!mustCreate && instance !== null && fingerprint === instanceFingerprint) {
+          return instance;
+        }
+
+        instance?.dispose();
+        // Cleared before constructing, so a construction failure leaves no
+        // reference to the disposed instance for a later run to trip over.
+        instance = null;
+        instanceFingerprint = null;
+        instance = createCSSConsole(options);
+        instanceNumber += 1;
+        instanceFingerprint = fingerprint;
+        scansRun = 0;
+        instance.subscribe(appendEvent);
+        updateStatus();
+        appendLine("info", "created instance #" + instanceNumber + " " + fingerprint);
+
+        return instance;
+      }
+
+      async function applyMarkupIfChanged() {
+        const markup = document.getElementById("markup").value;
+
+        if (markup === appliedMarkup) {
+          return;
+        }
+
+        stage.innerHTML = markup;
+        appliedMarkup = markup;
+
+        // Fixture links settle before any scan, so a scenario that compares
+        // a resolved value against a linked stylesheet's declaration reads
+        // the cascade after the engine applied it, not during the load race.
+        // The error path settles too (a 404 fires the error event), and the
+        // timeout keeps a hanging link from wedging the playground.
+        const links = [...stage.querySelectorAll("link")];
+
+        await Promise.all(
+          links.map((link) => {
+            if (link.sheet !== null) {
+              return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+              const done = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+              const timer = setTimeout(done, 3000);
+
+              link.addEventListener("load", done, { once: true });
+              link.addEventListener("error", done, { once: true });
+            });
+          }),
+        );
+      }
+
+      async function settleFrames() {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+
+      async function runOnce(scanOptions) {
+        if (createCSSConsole === null) {
+          return;
+        }
+
+        let live;
+
+        try {
+          await applyMarkupIfChanged();
+          await settleFrames();
+          live = ensureInstance(false);
+        } catch (error) {
+          appendLine("error", String(error));
+
+          return;
+        }
+
+        try {
+          await live.scan(scanOptions);
+          scansRun += 1;
+          updateStatus();
+        } catch (error) {
+          appendLine("error", "scan rejected: " + (error?.name ?? "") + " — " + String(error));
+        }
+      }
+
+      document.getElementById("run").addEventListener("click", () => {
+        void runOnce(undefined);
+      });
+
+      document.getElementById("run-two").addEventListener("click", async () => {
+        if (createCSSConsole === null) {
+          return;
+        }
+
+        let live;
+
+        try {
+          await applyMarkupIfChanged();
+          await settleFrames();
+          live = ensureInstance(false);
+        } catch (error) {
+          appendLine("error", String(error));
+
+          return;
+        }
+
+        const outcomes = await Promise.allSettled([live.scan(), live.scan()]);
+
+        for (const outcome of outcomes) {
+          if (outcome.status === "fulfilled") {
+            scansRun += 1;
+          } else {
+            appendLine("error", "scan rejected: " + String(outcome.reason));
+          }
+        }
+
+        updateStatus();
+      });
+
+      document.getElementById("run-abort").addEventListener("click", async () => {
+        if (createCSSConsole === null) {
+          return;
+        }
+
+        let live;
+
+        try {
+          await applyMarkupIfChanged();
+          await settleFrames();
+          live = ensureInstance(false);
+        } catch (error) {
+          appendLine("error", String(error));
+
+          return;
+        }
+
+        const controller = new AbortController();
+        const pending = live.scan({ signal: controller.signal });
+
+        controller.abort();
+
+        try {
+          await pending;
+          scansRun += 1;
+          updateStatus();
+          appendLine("error", "the scan was not aborted — this is unexpected");
+        } catch (error) {
+          appendLine("info", "scan rejected as expected: " + (error?.name ?? String(error)));
+        }
+      });
+
+      document.getElementById("new-instance").addEventListener("click", () => {
+        if (createCSSConsole === null) {
+          return;
+        }
+
+        try {
+          ensureInstance(true);
+        } catch (error) {
+          appendLine("error", String(error));
+        }
+      });
+
+      document.getElementById("dispose").addEventListener("click", () => {
+        if (instance === null) {
+          appendLine("info", "no instance to dispose");
+
+          return;
+        }
+
+        instance.dispose();
+        appendLine("info", "instance #" + instanceNumber + " disposed");
+      });
+
+      document.getElementById("remove-first").addEventListener("click", () => {
+        const first = stage.querySelector("style");
+
+        if (first === null) {
+          appendLine("info", "no style element on the stage");
+
+          return;
+        }
+
+        first.remove();
+        appendLine("info", "removed the first fixture style element");
+      });
+
+      document.getElementById("disable-first").addEventListener("click", () => {
+        const first = stage.querySelector("style");
+
+        if (first === null) {
+          appendLine("info", "no style element on the stage");
+
+          return;
+        }
+
+        first.disabled = true;
+        appendLine("info", "set the first fixture style element's IDL disabled property to true");
+      });
+
+      document.getElementById("clear").addEventListener("click", () => {
+        eventsOut.innerHTML = "";
+        rawOut.textContent = "";
+        rawEvents = [];
+      });
+    </script>
+  </body>
+</html>
