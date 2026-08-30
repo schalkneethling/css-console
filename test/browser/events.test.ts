@@ -81,6 +81,22 @@ function starts(events: readonly BrowserScanEvent[]) {
   return events.flatMap((event) => (event.kind === "probe-start" ? [event.probe] : []));
 }
 
+/**
+ * The function probe-start for the named function, or a failure naming the
+ * function rather than an undefined dereference deeper in the case.
+ */
+function functionStartFor(events: readonly BrowserScanEvent[], functionName: string) {
+  const start = starts(events).find(
+    (candidate) => candidate.probeKind === "function" && candidate.functionName === functionName,
+  );
+
+  if (start === undefined || start.probeKind !== "function") {
+    throw new Error(`expected a function probe-start for ${functionName}`);
+  }
+
+  return start;
+}
+
 test("a value probe emits probe-start, its records, and probe-summary in order", () => {
   const css = `/* css-console: log color */
 .solo { color: rgb(1, 2, 3); }`;
@@ -368,6 +384,91 @@ test("the published call-site record carries exactly the contract fields", () =>
       // must not compete with itself through the guard index.
       expect(record.guard).toEqual({ contested: false, reasons: [] });
     }
+  });
+});
+
+test("a function probe-start carries the definition, the call-site count, and the references", () => {
+  // The definition location, the number of call sites that compiled, and the
+  // definition references are compile-time facts of the probe, and the
+  // probe-start is the only event a consumer sees before the records arrive.
+  // A consumer that has to open a group for the function needs all three
+  // there, so this case pins them on the start rather than on a record.
+  const css = `/* css-console: log */
+@function --space(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+@function --space-loose(--n) {
+  result: --space(calc(var(--n) * 2));
+}
+
+.spaced { padding: --space(2); }`;
+
+  withFixture(`<p class="spaced"></p>`, css, (host) => {
+    const events = eventsOf(host, css);
+    const start = functionStartFor(events, "--space");
+
+    // The annotation comment opens the source, and the `@function` rule
+    // begins on the line after it, so the two locations are distinct and the
+    // start has to carry both rather than one standing in for the other.
+    expect(start.source.start).toEqual({ line: 1, column: 1 });
+    expect(start.definition.url).toBe(FIXTURE_URL);
+    expect(start.definition.start).toEqual({ line: 2, column: 1 });
+    expect(start.definition.end).toEqual({ line: 4, column: 1 });
+
+    // One declaration calls the function from a style rule, so exactly one
+    // call site compiled; the call inside the other function's body is not
+    // one of them.
+    expect(start.callSiteCount).toBe(1);
+    expect(records(events)).toHaveLength(1);
+
+    // The reference names the enclosing function rather than the annotated
+    // one, the `result` property it was found in, the arguments as authored,
+    // and the location of the declaration that holds it.
+    expect(start.definitionReferences).toEqual([
+      {
+        functionName: "--space-loose",
+        property: "result",
+        arguments: ["calc(var(--n) * 2)"],
+        source: {
+          url: FIXTURE_URL,
+          start: { line: 7, column: 3 },
+          end: { line: 7, column: 38 },
+        },
+      },
+    ]);
+  });
+});
+
+test("a function nothing calls carries a call-site count of zero and still lists its references", () => {
+  // A count of zero is what separates "nothing calls this function" from
+  // "every call site was inactive", which a consumer cannot tell apart from
+  // an empty record list alone.
+  const css = `/* css-console: log */
+@function --orphan(--n) {
+  result: calc(var(--n) * 3px);
+}
+
+@function --orphan-wrapper(--n) {
+  result: --orphan(calc(var(--n) * 2));
+}`;
+
+  withFixture(`<p class="unrelated"></p>`, css, (host) => {
+    const events = eventsOf(host, css);
+    const start = functionStartFor(events, "--orphan");
+
+    // `NO_CALL_SITES` is a compilation diagnostic, so it precedes the probe
+    // events rather than travelling with them, which is exactly why the
+    // count has to reach the stream on the start.
+    expect(kinds(events)).toEqual(["diagnostic", "probe-start", "probe-summary"]);
+    expect(start.callSiteCount).toBe(0);
+    expect(records(events)).toHaveLength(0);
+    expect(start.definitionReferences.map((reference) => reference.functionName)).toEqual([
+      "--orphan-wrapper",
+    ]);
+    expect(start.definitionReferences[0]?.property).toBe("result");
+    expect(start.definitionReferences[0]?.arguments).toEqual(["calc(var(--n) * 2)"]);
+    expect(start.definitionReferences[0]?.source.start).toEqual({ line: 7, column: 3 });
   });
 });
 

@@ -2,21 +2,25 @@ import { expect, test } from "vite-plus/test";
 
 import { createConsoleAdapter, createCSSConsole } from "@schalkneethling/css-console";
 import type {
+  BrowserFunctionRecord,
   BrowserScanEvent,
   BrowserScanSummary,
+  CallSite,
   ConsoleOutput,
+  FunctionProbeStart,
   ValueProbeStart,
 } from "@schalkneethling/css-console";
 
 /**
  * The console adapter, exercised as a consumer would use it.
  *
- * CSSC-030 renders value probes: a consumer subscribes
- * `createConsoleAdapter()` to a css-console instance and reads the scan in the
- * browser console. Every import comes from the package root, because the
- * adapter joins the public surface the facade already published, and every
- * case drives the real pipeline, because what the adapter renders is whatever
- * the engine resolved rather than an event a test composed.
+ * CSSC-030 renders value probes and CSSC-031 renders function probes: a
+ * consumer subscribes `createConsoleAdapter()` to a css-console instance and
+ * reads the scan in the browser console. Every import comes from the package
+ * root, because the adapter joins the public surface the facade already
+ * published, and every case drives the real pipeline, because what the adapter
+ * renders is whatever the engine resolved rather than an event a test
+ * composed.
  *
  * Each case supplies its CSS twice: once as a style element inside the fixture
  * subtree, so the browser really applies it and `getComputedStyle()` has
@@ -104,6 +108,7 @@ type Run = {
   calls: ConsoleCall[];
   events: BrowserScanEvent[];
   starts: ValueProbeStart[];
+  functionStarts: FunctionProbeStart[];
   summary: BrowserScanSummary;
 };
 
@@ -133,7 +138,13 @@ async function runScan(
   try {
     const summary = await cssConsole.scan();
 
-    return { calls: recording.calls, events, starts: valueProbeStarts(events), summary };
+    return {
+      calls: recording.calls,
+      events,
+      starts: valueProbeStarts(events),
+      functionStarts: functionProbeStarts(events),
+      summary,
+    };
   } finally {
     cssConsole.dispose();
   }
@@ -150,6 +161,32 @@ function valueProbeStarts(events: readonly BrowserScanEvent[]): ValueProbeStart[
   }
 
   return starts;
+}
+
+/** Every function probe-start of a scan, in the order the scan emitted them. */
+function functionProbeStarts(events: readonly BrowserScanEvent[]): FunctionProbeStart[] {
+  const starts: FunctionProbeStart[] = [];
+
+  for (const event of events) {
+    if (event.kind === "probe-start" && event.probe.probeKind === "function") {
+      starts.push(event.probe);
+    }
+  }
+
+  return starts;
+}
+
+/** Every function record of a scan, in the order the scan emitted them. */
+function functionRecords(events: readonly BrowserScanEvent[]): BrowserFunctionRecord[] {
+  const collected: BrowserFunctionRecord[] = [];
+
+  for (const event of events) {
+    if (event.kind === "record" && event.record.kind === "function") {
+      collected.push(event.record);
+    }
+  }
+
+  return collected;
 }
 
 /**
@@ -176,9 +213,73 @@ function titleFor(starts: readonly ValueProbeStart[], selector: string): string 
 }
 
 /**
+ * The group title one function probe-start dictates:
+ * `css-console [label] functionName — url:line:column`, which is the value
+ * probe pattern with the function name standing where the selector stands.
+ */
+function expectedFunctionTitle(start: FunctionProbeStart): string {
+  const label = start.label === undefined ? "" : `[${start.label}] `;
+  const location = `${start.source.url}:${start.source.start.line}:${start.source.start.column}`;
+
+  return `css-console ${label}${start.functionName} — ${location}`;
+}
+
+/** The title of the function probe named, or a failure saying so. */
+function functionTitleFor(starts: readonly FunctionProbeStart[], functionName: string): string {
+  const start = starts.find((candidate) => candidate.functionName === functionName);
+
+  if (start === undefined) {
+    throw new Error(`expected a function probe for ${functionName}`);
+  }
+
+  return expectedFunctionTitle(start);
+}
+
+/**
+ * The title one call-site group dictates: the destination property, the
+ * arguments as authored, the selector, and the call site's own location, with
+ * the surrounding-contributions marker appended for a call that is not the
+ * whole declaration value.
+ */
+function expectedCallSiteTitle(callSite: CallSite): string {
+  const location = `${callSite.source.url}:${callSite.source.start.line}:${callSite.source.start.column}`;
+  const marker = callSite.soleContribution
+    ? ""
+    : " (includes surrounding expression contributions)";
+
+  return `${callSite.property} with (${callSite.arguments.join(", ")}) — ${callSite.selector} — ${location}${marker}`;
+}
+
+/**
+ * The line one definition reference dictates. The parameter is typed through
+ * the probe-start rather than through an imported type name, so that the line
+ * format stays tied to whatever shape the contract publishes.
+ */
+function expectedReferenceLine(
+  reference: FunctionProbeStart["definitionReferences"][number],
+): string {
+  const location = `${reference.source.url}:${reference.source.start.line}:${reference.source.start.column}`;
+
+  return `referenced inside ${reference.functionName} — ${reference.property} with (${reference.arguments.join(", ")}) — ${location}`;
+}
+
+/**
+ * The defined-at line one function probe-start dictates, derived from the
+ * definition location the event carried rather than restated, so that an
+ * adapter reading the annotation's location instead of the `@function` rule's
+ * fails the assertion.
+ */
+function expectedDefinedAt(start: FunctionProbeStart): string {
+  return `defined at ${start.definition.url}:${start.definition.start.line}:${start.definition.start.column}`;
+}
+
+/**
  * The calls between the collapsed group carrying `title` and the group end
- * that closes it. CSSC-030 opens no nested groups, so the first group end
- * after the title is the matching one.
+ * that closes it. A function probe nests a group per call site inside its own
+ * group, so the matching end is found by counting: every nested
+ * `groupCollapsed` deepens the search, and every `groupEnd` closes the
+ * innermost open group, which makes the body of an outer group include the
+ * whole of every group nested in it.
  */
 function groupBody(calls: readonly ConsoleCall[], title: string): readonly ConsoleCall[] {
   const start = calls.findIndex(
@@ -189,13 +290,25 @@ function groupBody(calls: readonly ConsoleCall[], title: string): readonly Conso
     throw new Error(`expected a collapsed group titled ${title}`);
   }
 
-  const end = calls.findIndex((call, position) => position > start && call.method === "groupEnd");
+  let depth = 1;
 
-  if (end === -1) {
-    throw new Error(`expected the group titled ${title} to be closed`);
+  for (const [position, call] of calls.entries()) {
+    if (position <= start) {
+      continue;
+    }
+
+    if (call.method === "groupCollapsed") {
+      depth += 1;
+    } else if (call.method === "groupEnd") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return calls.slice(start + 1, position);
+      }
+    }
   }
 
-  return calls.slice(start + 1, end);
+  throw new Error(`expected the group titled ${title} to be closed`);
 }
 
 /**
@@ -596,7 +709,7 @@ test("the global console is never replaced, and none of its methods are patched"
   }
 });
 
-test("function probe events and diagnostics are ignored while the value probes still render", async () => {
+test("diagnostics render nothing while value and function probes render side by side", async () => {
   const css = `/* css-console: log margin-left */
 .console-mixed { margin-left: 16px; }
 
@@ -616,23 +729,32 @@ test("function probe events and diagnostics are ignored while the value probes s
     const run = await runScan("console-mixed", css);
 
     // The annotation before @media is not a target, so the scan reports a
-    // diagnostic the adapter renders nothing for; CSSC-032 owns diagnostics.
+    // diagnostic the adapter renders nothing for; CSSC-032 owns diagnostics,
+    // and nothing in the recorded output names the code.
     expect(run.summary.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["NOT_A_TARGET"]);
+    expect(run.calls.some((call) => lineText(call).includes("NOT_A_TARGET"))).toBe(false);
+    expect(run.calls.some((call) => call.method === "warn" || call.method === "error")).toBe(false);
 
-    // The function probe opens and closes on the stream, and its record is a
-    // function record, so no group and no line belongs to it: CSSC-031 owns
-    // function rendering.
-    expect(
-      run.events.some(
-        (event) => event.kind === "probe-start" && event.probe.probeKind === "function",
-      ),
-    ).toBe(true);
-    expect(run.calls.filter((call) => call.method === "groupCollapsed")).toHaveLength(1);
+    // Both probe kinds render their own group, and the function probe nests a
+    // group for its one call site, so the scan opens three groups in total.
+    const valueBody = groupBody(run.calls, titleFor(run.starts, ".console-mixed"));
+    const functionBody = groupBody(
+      run.calls,
+      functionTitleFor(run.functionStarts, "--console-space"),
+    );
 
-    const body = groupBody(run.calls, titleFor(run.starts, ".console-mixed"));
+    expect(run.calls.filter((call) => call.method === "groupCollapsed")).toHaveLength(3);
+    expect(valueBody).toHaveLength(1);
+    expect(lineText(valueBody[0] as ConsoleCall)).toContain("margin-left");
 
-    expect(body).toHaveLength(1);
-    expect(lineText(body[0] as ConsoleCall)).toContain("margin-left");
+    const [start] = run.functionStarts;
+
+    expect(start).toBeDefined();
+    expect(lineText(functionBody[0] as ConsoleCall)).toBe(
+      expectedDefinedAt(start as FunctionProbeStart),
+    );
+    expect(functionBody.filter((call) => call.method === "groupCollapsed")).toHaveLength(1);
+    expect(functionBody.filter((call) => call.method === "table")).toHaveLength(1);
   });
 });
 
@@ -649,5 +771,300 @@ test("a value probe whose condition is inactive renders an empty collapsed group
     // signal: the group opens and closes with nothing between it.
     expect(run.summary.probes.skipped).toBe(1);
     expect(groupBody(run.calls, titleFor(run.starts, ".console-inactive"))).toEqual([]);
+  });
+});
+
+test("a function group is titled with the function name and opens with the defined-at line", async () => {
+  const css = `/* css-console: log */
+@function --console-titled-fn(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+.console-fn-title { padding: --console-titled-fn(4); }`;
+
+  await withFixture(`<p class="console-fn-title"></p>`, css, async () => {
+    const run = await runScan("console-fn-title", css);
+    const [start] = run.functionStarts;
+
+    expect(start).toBeDefined();
+
+    const probeStart = start as FunctionProbeStart;
+
+    // The title is the value probe pattern with the function name standing
+    // where the selector stands, and the name carries its dashes exactly as
+    // the engine reports it.
+    expect(probeStart.functionName).toBe("--console-titled-fn");
+    expect(expectedFunctionTitle(probeStart)).toBe(
+      "css-console --console-titled-fn — raw:console-fn-title:1:1",
+    );
+    expect(
+      run.calls.some(
+        (call) =>
+          call.method === "groupCollapsed" &&
+          call.args[0] === "css-console --console-titled-fn — raw:console-fn-title:1:1",
+      ),
+    ).toBe(true);
+
+    // The annotation opens the source and the `@function` rule begins on the
+    // line after it, so the defined-at line names a location the title does
+    // not, which is what makes the two distinguishable at all.
+    expect(probeStart.definition.start).toEqual({ line: 2, column: 1 });
+
+    const body = groupBody(run.calls, expectedFunctionTitle(probeStart));
+
+    expect(body[0]?.method).toBe("log");
+    expect(lineText(body[0] as ConsoleCall)).toBe(expectedDefinedAt(probeStart));
+    expect(lineText(body[0] as ConsoleCall)).toBe("defined at raw:console-fn-title:2:1");
+  });
+});
+
+test("one call site matched by two elements renders one table of resolved property values", async () => {
+  const css = `/* css-console: log */
+@function --console-density(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+.console-fn-density { padding-top: --console-density(var(--density)); }`;
+  const markup = `<p class="console-fn-density" id="console-fn-loose" style="--density: 2"></p>
+<p class="console-fn-density" id="console-fn-tight" style="--density: 5"></p>`;
+
+  await withFixture(markup, css, async (host) => {
+    const run = await runScan("console-fn-density", css);
+    const body = groupBody(run.calls, functionTitleFor(run.functionStarts, "--console-density"));
+    const tables = body.filter((call) => call.method === "table");
+
+    // One call site, so one sibling group holding exactly one table, however
+    // many elements the call site matched.
+    expect(body.filter((call) => call.method === "groupCollapsed")).toHaveLength(1);
+    expect(tables).toHaveLength(1);
+
+    const rows = (tables[0] as ConsoleCall).args[0] as ReadonlyArray<Record<string, unknown>>;
+    const loose = elementIn(host, "#console-fn-loose");
+    const tight = elementIn(host, "#console-fn-tight");
+
+    // The middle column is literally named `resolved property value`, because
+    // the value a function record carries is the destination property's
+    // resolved value rather than the function's return value.
+    expect(rows).toHaveLength(2);
+    expect(Object.keys(rows[0] as Record<string, unknown>)).toEqual([
+      "element",
+      "resolved property value",
+      "contested",
+    ]);
+    expect(rows.map((row) => row.element)).toEqual([loose, tight]);
+    expect(rows.map((row) => row.contested)).toEqual([false, false]);
+
+    // The two elements differ only in the custom property the argument reads,
+    // so the engine resolved two different values and the table has to show
+    // both rather than one value standing for the call site.
+    const looseResolved = getComputedStyle(loose).paddingTop;
+    const tightResolved = getComputedStyle(tight).paddingTop;
+
+    expect(looseResolved).toBe("20px");
+    expect(tightResolved).toBe("50px");
+    expect(rows[0]?.["resolved property value"]).toBe(looseResolved);
+    expect(rows[1]?.["resolved property value"]).toBe(tightResolved);
+    expect(rows[0]?.["resolved property value"]).not.toBe(rows[1]?.["resolved property value"]);
+  });
+});
+
+test("a call-site title names the call, and marks a call the surrounding expression contributes to", async () => {
+  const css = `/* css-console: log */
+@function --console-marked(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+.console-fn-sole { padding-top: --console-marked(4); }
+
+.console-fn-wrapped { margin-left: calc(--console-marked(2) + 5px); }`;
+  const markup = `<p class="console-fn-sole"></p><p class="console-fn-wrapped"></p>`;
+
+  await withFixture(markup, css, async () => {
+    const run = await runScan("console-fn-marked", css);
+    const [soleRecord, wrappedRecord] = functionRecords(run.events);
+
+    expect(soleRecord?.callSite.soleContribution).toBe(true);
+    expect(wrappedRecord?.callSite.soleContribution).toBe(false);
+
+    const body = groupBody(run.calls, functionTitleFor(run.functionStarts, "--console-marked"));
+    const titles = body
+      .filter((call) => call.method === "groupCollapsed")
+      .map((call) => String(call.args[0]));
+
+    expect(titles).toEqual([
+      expectedCallSiteTitle((soleRecord as BrowserFunctionRecord).callSite),
+      expectedCallSiteTitle((wrappedRecord as BrowserFunctionRecord).callSite),
+    ]);
+
+    const [soleTitle, wrappedTitle] = titles as [string, string];
+
+    // The title carries the destination property, the arguments as authored,
+    // the selector of the rule the call sits in, and the call site's own
+    // location.
+    expect(soleTitle).toContain("padding-top with (4)");
+    expect(soleTitle).toContain(".console-fn-sole");
+    expect(soleTitle).toContain("raw:console-fn-marked:6:");
+
+    // A call that is the whole declaration value carries no marker, and a
+    // call inside `calc()` carries one, because the resolved value the row
+    // reports includes whatever the surrounding expression contributed.
+    expect(soleTitle).not.toContain("includes surrounding expression contributions");
+    expect(wrappedTitle).toContain("margin-left with (2)");
+    expect(wrappedTitle).toContain(" (includes surrounding expression contributions)");
+  });
+});
+
+test("two call sites render as sibling collapsed groups inside one function group", async () => {
+  const css = `/* css-console: log */
+@function --console-siblings(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+.console-fn-first { padding-top: --console-siblings(1); }
+
+.console-fn-second { margin-top: --console-siblings(2); }`;
+  const markup = `<p class="console-fn-first"></p><p class="console-fn-second"></p>`;
+
+  await withFixture(markup, css, async () => {
+    const run = await runScan("console-fn-siblings", css);
+    const body = groupBody(run.calls, functionTitleFor(run.functionStarts, "--console-siblings"));
+    const [first, second] = functionRecords(run.events);
+
+    // The call-site groups are siblings rather than nested: each opens, holds
+    // its one table, and closes before the next opens.
+    expect(body.map((call) => call.method)).toEqual([
+      "log",
+      "groupCollapsed",
+      "table",
+      "groupEnd",
+      "groupCollapsed",
+      "table",
+      "groupEnd",
+    ]);
+
+    // They appear in the order the records first named them, which is the
+    // order the call sites resolved in.
+    expect([body[1]?.args[0], body[4]?.args[0]]).toEqual([
+      expectedCallSiteTitle((first as BrowserFunctionRecord).callSite),
+      expectedCallSiteTitle((second as BrowserFunctionRecord).callSite),
+    ]);
+    expect(first?.callSite.property).toBe("padding-top");
+    expect(second?.callSite.property).toBe("margin-top");
+  });
+});
+
+test("a function with no call sites renders the informational line and lists its references", async () => {
+  const css = `/* css-console: log */
+@function --console-orphan(--n) {
+  result: calc(var(--n) * 3px);
+}
+
+@function --console-orphan-wrapper(--n) {
+  result: --console-orphan(calc(var(--n) * 2));
+}`;
+
+  await withFixture(`<p class="console-fn-unrelated"></p>`, css, async () => {
+    const run = await runScan("console-fn-orphan", css);
+    const [start] = run.functionStarts;
+
+    expect(start).toBeDefined();
+
+    const probeStart = start as FunctionProbeStart;
+
+    expect(probeStart.callSiteCount).toBe(0);
+
+    const body = groupBody(run.calls, expectedFunctionTitle(probeStart));
+
+    // The defined-at line always renders first, the informational line goes
+    // through `info` whatever the annotation's own log level is, and the
+    // references follow it through the probe's log level.
+    expect(body.map((call) => call.method)).toEqual(["log", "info", "log"]);
+    expect(lineText(body[0] as ConsoleCall)).toBe(expectedDefinedAt(probeStart));
+    expect((body[1] as ConsoleCall).args[0]).toBe("no call sites in the scanned sources");
+
+    const [reference] = probeStart.definitionReferences;
+
+    expect(reference?.functionName).toBe("--console-orphan-wrapper");
+    expect(reference?.property).toBe("result");
+    expect(reference?.arguments).toEqual(["calc(var(--n) * 2)"]);
+    expect(lineText(body[2] as ConsoleCall)).toBe(
+      expectedReferenceLine(reference as FunctionProbeStart["definitionReferences"][number]),
+    );
+    expect(lineText(body[2] as ConsoleCall)).toBe(
+      "referenced inside --console-orphan-wrapper — result with (calc(var(--n) * 2)) — raw:console-fn-orphan:7:3",
+    );
+
+    // A reference is not a call site: nothing matched, so no call-site group
+    // and no table exist to hold a resolved value that does not exist either.
+    expect(body.some((call) => call.method === "groupCollapsed")).toBe(false);
+    expect(run.calls.some((call) => call.method === "table")).toBe(false);
+  });
+});
+
+test("a function whose every call site is inactive renders the defined-at line and nothing else", async () => {
+  const css = `/* css-console: log */
+@function --console-hidden(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+@media (width < 1px) {
+  .console-fn-hidden { padding-top: --console-hidden(6); }
+}`;
+
+  await withFixture(`<p class="console-fn-hidden"></p>`, css, async () => {
+    const run = await runScan("console-fn-hidden", css);
+    const [start] = run.functionStarts;
+
+    expect(start).toBeDefined();
+
+    const probeStart = start as FunctionProbeStart;
+
+    // A call site compiled, so this is not the no-call-sites case: the count
+    // is what separates a function nothing calls from a function whose calls
+    // all sit in an inactive condition.
+    expect(probeStart.callSiteCount).toBe(1);
+    expect(functionRecords(run.events)).toHaveLength(0);
+
+    const body = groupBody(run.calls, expectedFunctionTitle(probeStart));
+
+    expect(body.map((call) => call.method)).toEqual(["log"]);
+    expect(lineText(body[0] as ConsoleCall)).toBe(expectedDefinedAt(probeStart));
+    expect(run.calls.some((call) => call.method === "table")).toBe(false);
+  });
+});
+
+test("a function probe over its match budget renders the truncation line with the summary counts", async () => {
+  const css = `/* css-console: log */
+@function --console-budget(--n) {
+  result: calc(var(--n) * 1px);
+}
+
+.console-fn-budget-first { padding-top: --console-budget(1); }
+
+.console-fn-budget-second { margin-top: --console-budget(2); }`;
+  const markup = `${Array.from({ length: 3 }, () => `<p class="console-fn-budget-first"></p>`).join("")}${Array.from(
+    { length: 3 },
+    () => `<p class="console-fn-budget-second"></p>`,
+  ).join("")}`;
+
+  await withFixture(markup, css, async () => {
+    const run = await runScan("console-fn-budget", css, { maxElements: 4 });
+    const body = groupBody(run.calls, functionTitleFor(run.functionStarts, "--console-budget"));
+
+    // The budget is spent across the call sites in resolution order, so the
+    // first call site takes three of the four and the second takes one, and
+    // the counts the truncation line reports are the probe's own totals.
+    expect(run.summary.matches).toEqual({ total: 6, evaluated: 4, omitted: 2 });
+
+    const tables = body.filter((call) => call.method === "table");
+
+    expect(tables).toHaveLength(2);
+    expect(
+      tables.map((call) => (call.args[0] as ReadonlyArray<Record<string, unknown>>).length),
+    ).toEqual([3, 1]);
+
+    // The truncation line closes the body, after every call-site group.
+    expect(body.at(-1)?.method).toBe("log");
+    expect(body.at(-1)?.args[0]).toBe("evaluated 4 of 6 matches, 2 omitted (maxElements)");
   });
 });
