@@ -70,7 +70,9 @@ import { compileDeclarationContext } from "../compiler/rule-context.ts";
 import type { RuleContext } from "../compiler/rule-context.ts";
 import { createDiagnostic } from "../diagnostics/index.ts";
 import type { Diagnostic } from "../diagnostics/index.ts";
-import type { CallSite, SourceLocation } from "../records/index.ts";
+import type { CallSite, DefinitionReference, SourceLocation } from "../records/index.ts";
+
+export type { DefinitionReference } from "../records/index.ts";
 
 /** The function target shape a function probe resolves call sites from. */
 export type FunctionTarget = Extract<AnnotationTarget, { kind: "function" }>;
@@ -87,24 +89,6 @@ export type FunctionTarget = Extract<AnnotationTarget, { kind: "function" }>;
  * exactly what CSSC-017 does with the context carried here.
  */
 export type ResolvedCallSite = CallSite & { context: RuleContext };
-
-/**
- * One call of the annotated function from inside another function's body.
- *
- * This is not a call site and is deliberately not shaped like one. It carries
- * no selector, because a function body matches no element, and no
- * `soleContribution`, because the property a function body declares is
- * `result` rather than a destination property whose resolved value anything
- * can read. `functionName` is the enclosing function, which is the fact that
- * makes the reference worth reporting: it tells an author where the annotated
- * function is used even though no value is observable there.
- */
-export type DefinitionReference = {
-  functionName: string;
-  property: string;
-  arguments: readonly string[];
-  source: SourceLocation;
-};
 
 /**
  * The outcome of resolving one function probe's call sites: every call site

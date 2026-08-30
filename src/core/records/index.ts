@@ -198,11 +198,37 @@ export type ValueProbeStart = {
 };
 
 /**
+ * One call of an annotated function from inside another function's body.
+ *
+ * This is not a call site and is deliberately not shaped like one. It carries
+ * no selector, because a function body matches no element, and no
+ * `soleContribution`, because the property a function body declares is
+ * `result` rather than a destination property whose resolved value anything
+ * can read. `functionName` is the enclosing function, which is the fact that
+ * makes the reference worth reporting: it tells an author where the annotated
+ * function is used even though no value is observable there.
+ */
+export type DefinitionReference = {
+  functionName: string;
+  property: string;
+  arguments: readonly string[];
+  source: SourceLocation;
+};
+
+/**
  * The event that opens a function probe. `functionName` is the name a
  * consumer titles the group with, `source` is the location of the annotation
  * comment, and `probeId` is the function probe's own identifier; the records
  * between the start and the summary carry the composed per-call-site
  * identifiers that begin with it.
+ *
+ * `definition`, `callSiteCount`, and `definitionReferences` are compile-time
+ * facts of the probe, and the probe-start is the only event a consumer sees
+ * before any record arrives, so all three have to travel here rather than on
+ * a record: a consumer opening a console group for the function needs the
+ * `@function` rule's own location, the count that distinguishes "nothing
+ * calls this function" from "every call site is inactive", and the
+ * references, before it has seen a single record.
  */
 export type FunctionProbeStart = {
   probeId: string;
@@ -211,6 +237,26 @@ export type FunctionProbeStart = {
   label?: string;
   functionName: string;
   source: SourceLocation;
+
+  /**
+   * The location of the `@function` rule itself, distinct from `source`,
+   * which is the location of the annotation comment that opened the probe.
+   */
+  definition: SourceLocation;
+
+  /**
+   * How many call sites compiled for this function, so a consumer can tell a
+   * function nothing calls (count zero) from a function whose call sites all
+   * sit in an inactive condition (count positive, zero records).
+   */
+  callSiteCount: number;
+
+  /**
+   * Every call of this function found inside another function's body, in
+   * source order. These are compile-time facts distinct from the call sites
+   * a scan evaluates, so they travel here rather than waiting on evaluation.
+   */
+  definitionReferences: readonly DefinitionReference[];
 };
 
 /**

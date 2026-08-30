@@ -17,6 +17,7 @@ export const PACKAGE_NAME = "@schalkneethling/css-console";
 
 export type {
   CallSite,
+  DefinitionReference,
   FunctionProbeStart,
   FunctionRecord,
   GuardReason,
