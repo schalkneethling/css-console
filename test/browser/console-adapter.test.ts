@@ -580,14 +580,18 @@ test("a line carries the authored value, the resolved value, and the contested m
     const text = lineText(body[0] as ConsoleCall);
 
     // The later declaration wins the cascade, so the authored value and the
-    // resolved value differ and each has to appear on its own account.
-    expect(body).toHaveLength(1);
+    // resolved value differ and each has to appear on its own account. The
+    // contested guard adds its CSSC-032 handoff line after the value line,
+    // so the body holds two calls and the value line is the first.
+    expect(body).toHaveLength(2);
     expect(text).toContain("rgb(6, 6, 6)");
     expect(text).toContain("rgb(7, 7, 7)");
 
     // The guard reports the value as contested, which the line marks; the
-    // reasons themselves are CSSC-032 and are not rendered here.
+    // reasons render on the handoff line, whose shape the CSSC-032 cases
+    // pin, rather than on the value line itself.
     expect(text).toContain("(contested)");
+    expect(String((body[1] as ConsoleCall).args[0])).toContain("contested (");
   });
 });
 

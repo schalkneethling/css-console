@@ -1,13 +1,12 @@
 /**
  * The console adapter.
  *
- * `createConsoleAdapter()` renders value probes and function probes: it
- * subscribes to a css-console instance and turns the event stream into a
- * legible browser console report, one collapsed group per probe, with the
- * scan itself bracketed by a named timer and closed with a completion line.
- * Diagnostics and guard reasons are CSSC-032; this adapter ignores every
- * event that release owns, without error, so that subscribing it beside a
- * future adapter costs nothing.
+ * `createConsoleAdapter()` renders the whole scan event stream: value probes
+ * and function probes (CSSC-030 and CSSC-031), and, as of CSSC-032,
+ * diagnostics and the contested-guard handoff. It subscribes to a
+ * css-console instance and turns the event stream into a legible browser
+ * console report, one collapsed group per probe, with the scan itself
+ * bracketed by a named timer and closed with a completion line.
  *
  * Rendering happens at the probe boundary, on `probe-summary`, rather than
  * as each record arrives, because whether a probe's body reads as one
@@ -38,6 +37,47 @@
  * site, each holding the one table of resolved property values that call
  * site produced.
  *
+ * ## Diagnostics
+ *
+ * A diagnostic event renders as it arrives, streaming, rather than buffered
+ * to a boundary the way records are: the method it renders through follows
+ * from its own severity (`info` through `output.info()`, `warning` through
+ * `output.warn()`, `error` through `output.error()`), and its first argument
+ * is the code, an em dash, the registry message, the source location when
+ * the diagnostic carries one, a newline, and the documentation anchor; its
+ * details, when present, travel live as the second argument rather than
+ * stringified, so developer tools offers the engine's own facts beside the
+ * registry's meaning. A source-level diagnostic therefore renders at the top
+ * level, and a probe-level diagnostic renders inside the probe's still-open
+ * collapsed group: the ordering contract puts a probe's diagnostics before
+ * its records, and because a probe's body renders only at its
+ * `probe-summary`, a diagnostic that arrives while the group is still open
+ * always lands before the body that closes it.
+ *
+ * A diagnostic renders only once per identical occurrence within one scan.
+ * The key is the code, the message, the source location (or its absence),
+ * and the JSON serialization of the details (or their absence); an identical
+ * repeat carries zero additional information once the first occurrence has
+ * rendered. Repeated source failures across several links to one URL are the
+ * motivating case, and the rule generalizes to every code. The seen set is
+ * constructed fresh when a scan's first event arrives and again when a
+ * scan's `summary` event closes it, so on the normal path no entry survives
+ * into the scan that follows.
+ *
+ * ## The contested guard handoff
+ *
+ * A value or function record's guard never resolves the cascade or names a
+ * winner; it only reports whether the annotated declaration may not be the
+ * sole contributor to the observed value, and why (see `ValueGuard` in
+ * `src/core/records/index.ts`). Wherever a value's line already carries the
+ * `(contested)` marker, the adapter follows it with one handoff line through
+ * the record's own log-level method, naming the guard's reasons and offering
+ * the live element for inspection, because the guard's claim is a hint to
+ * look rather than a verdict. This appears after the per-property lines in
+ * the single-record path, once per contested pair after the table in the
+ * table path, and once per contested record after each call site's table in
+ * a function probe's call-site groups.
+ *
  * An aborted scan is not observable from the event stream, and the adapter
  * therefore does not recover from one. An aborted scan rejects with
  * `AbortError` and emits no summary, while the events it already delivered
@@ -48,7 +88,10 @@
  * one, so the next scan on the same adapter renders under the interrupted
  * scan's timer, reports its completion line against that older label, and,
  * when the abort landed between a probe-start and its probe-summary, renders
- * inside a group that was never closed. Guessing at a scan boundary from
+ * inside a group that was never closed. The deduplication set is likewise
+ * not reset after an abort, so a diagnostic the interrupted scan already
+ * rendered is suppressed when the next scan reports it again. Guessing at a
+ * scan boundary from
  * event patterns is deliberately not attempted, because a wrong guess would
  * corrupt correct streams. A consumer that aborts scans should subscribe a
  * fresh adapter for the scans that follow; the alternative is an event
@@ -64,7 +107,9 @@
 
 import type {
   CallSite,
+  Diagnostic,
   FunctionProbeStart,
+  GuardReason,
   ProbeSummary,
   ProbeValue,
   ValueProbeStart,
@@ -186,6 +231,79 @@ function decorateResolved(resolved: string): string {
 }
 
 /**
+ * The handoff line a contested guard dictates: the reasons the guard
+ * reported, and an instruction to inspect the live element rather than a
+ * claim about which declaration won. The wording claims only what the guard
+ * claims, so it never says the annotated declaration was overridden.
+ */
+function contestedHandoffLine(reasons: readonly GuardReason[]): string {
+  return `contested (${reasons.join(", ")}) — inspect this element in developer tools; the annotated declaration may not be the sole contributor`;
+}
+
+/**
+ * The text one diagnostic renders as its first argument: the code, the
+ * message, the source location when the diagnostic carries one, and the
+ * documentation anchor on a line of its own.
+ */
+function diagnosticText(diagnostic: Diagnostic): string {
+  const location =
+    diagnostic.source === undefined
+      ? ""
+      : ` — ${diagnostic.source.url}:${diagnostic.source.start.line}:${diagnostic.source.start.column}`;
+
+  return `${diagnostic.code} — ${diagnostic.message}${location}\n${diagnostic.docsUrl}`;
+}
+
+/**
+ * The output method a diagnostic renders through, following directly from
+ * its own severity: the published `Diagnostic` contract carries no category,
+ * so severity is the adapter's only lever.
+ */
+function diagnosticMethod(severity: Diagnostic["severity"]): "info" | "warn" | "error" {
+  switch (severity) {
+    case "info": {
+      return "info";
+    }
+
+    case "warning": {
+      return "warn";
+    }
+
+    case "error": {
+      return "error";
+    }
+  }
+}
+
+/**
+ * The deduplication key one diagnostic occurrence carries within one scan:
+ * the code, the message, the source location (or its absence), and the JSON
+ * serialization of the details (or their absence). Two occurrences that
+ * produce the same key are identical for rendering purposes, so only the
+ * first of them renders.
+ */
+function diagnosticKey(diagnostic: Diagnostic): string {
+  const location = diagnostic.source === undefined ? "none" : JSON.stringify(diagnostic.source);
+  const details = diagnostic.details === undefined ? "none" : JSON.stringify(diagnostic.details);
+
+  return JSON.stringify([diagnostic.code, diagnostic.message, location, details]);
+}
+
+/**
+ * Renders one diagnostic through the method its severity dictates, with its
+ * details, when present, travelling live as the second argument.
+ */
+function renderDiagnostic(diagnostic: Diagnostic, output: ConsoleOutput): void {
+  const method = diagnosticMethod(diagnostic.severity);
+
+  if (diagnostic.details === undefined) {
+    output[method](diagnosticText(diagnostic));
+  } else {
+    output[method](diagnosticText(diagnostic), diagnostic.details);
+  }
+}
+
+/**
  * The arguments one `ProbeValue` renders as, for the single-record line
  * path. The property name, the authored value, the resolved value, and a
  * `(contested)` marker when the guard reports one form the text; the live
@@ -250,8 +368,22 @@ function renderValueProbeBody(
     for (const value of record.values) {
       output[record.logLevel](...valueLineArguments(value, record.target));
     }
+
+    for (const value of record.values) {
+      if (value.guard.contested) {
+        output[record.logLevel](contestedHandoffLine(value.guard.reasons), record.target);
+      }
+    }
   } else if (records.length > 1) {
     output.table(valueTableRows(records));
+
+    for (const record of records) {
+      for (const value of record.values) {
+        if (value.guard.contested) {
+          output[record.logLevel](contestedHandoffLine(value.guard.reasons), record.target);
+        }
+      }
+    }
   }
 
   if (matches.omitted > 0) {
@@ -365,6 +497,13 @@ function renderFunctionProbeBody(
     }));
 
     output.table(rows);
+
+    for (const record of siteRecords) {
+      if (record.guard.contested) {
+        output[record.logLevel](contestedHandoffLine(record.guard.reasons), record.target);
+      }
+    }
+
     output.groupEnd();
   }
 
@@ -389,15 +528,28 @@ export function createConsoleAdapter(
   let scanCounter = 0;
   let scanLabel: string | null = null;
   let openProbe: OpenProbe | null = null;
+  let seenDiagnostics = new Set<string>();
 
   return (event: BrowserScanEvent): void => {
     if (scanLabel === null) {
       scanCounter += 1;
       scanLabel = `css-console scan ${scanCounter}`;
+      seenDiagnostics = new Set<string>();
       output.time(scanLabel);
     }
 
     switch (event.kind) {
+      case "diagnostic": {
+        const key = diagnosticKey(event.diagnostic);
+
+        if (!seenDiagnostics.has(key)) {
+          seenDiagnostics.add(key);
+          renderDiagnostic(event.diagnostic, output);
+        }
+
+        break;
+      }
+
       case "probe-start": {
         if (event.probe.probeKind === "value") {
           openProbe = { kind: "value", start: event.probe, records: [] };
@@ -459,6 +611,7 @@ export function createConsoleAdapter(
         });
 
         openProbe = null;
+        seenDiagnostics = new Set<string>();
 
         break;
       }
