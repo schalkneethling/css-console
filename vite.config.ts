@@ -67,6 +67,44 @@ export default defineConfig({
       tsgo: true,
     },
     exports: true,
+    // The artifact ships for the browser, so the bundle is built for that
+    // platform rather than the tsdown default of `node`. On `node`, tsdown
+    // injects an `esm-shims.js` banner for `__dirname` and `__filename` and
+    // leaves builtin specifiers external, which is how the first bundled
+    // build emitted `import { createRequire } from "node:module"` together
+    // with `__require("fs")`, `__require("path")`, and `__require("url")`
+    // (getShims and the builtin branch of `externalStrategy`, both in
+    // node_modules/.pnpm/@voidzero-dev+vite-plus-core@0.2.6/.../dist/tsdown/
+    // build-oq13wECG-Bymq3jT5.js). Setting the platform removes the shim and
+    // makes Rolldown read the `browser` field, which is what excludes
+    // postcss's `./lib/terminal-highlight`.
+    platform: "browser",
+    // tsdown derives `fixedExtension` from the platform
+    // (`fixedExtension = platform === "node"` in the same file), so switching
+    // to the browser platform would rename the ES module output from
+    // `index.mjs` to `index.js` and rewrite the generated `exports` field
+    // with it. The extension is part of the published surface, so it is
+    // pinned rather than left to follow the platform.
+    fixedExtension: true,
+    // postcss and postcss-value-parser are bundled deliberately, so the
+    // artifact runs exactly the parser the test suite ran against. tsdown
+    // externalizes production dependencies only: `getProductionDeps` in the
+    // same build file reads `dependencies`, `peerDependencies`,
+    // `peerDependenciesMeta`, and `optionalDependencies`, and
+    // `externalStrategy` externalizes an identifier only when that set
+    // contains it. Both packages are devDependencies, so they are bundled by
+    // that rule alone; `deps.onlyBundle` states the intent, and it is an
+    // error rather than a hint when anything else reaches the bundle.
+    deps: {
+      onlyBundle: ["postcss", "postcss-value-parser", "nanoid", "picocolors"],
+    },
+    // The pack pipeline is tsdown, not Vite, and it never reads the
+    // top-level `resolve.alias` above: `resolveInputOptions` passes only its
+    // own `alias` option through as Rolldown's `resolve.alias`. The bundled
+    // postcss therefore needs the same empty-module resolution restated here,
+    // or the four specifiers postcss excludes from browser builds end up in
+    // the artifact as bare or `node:` imports.
+    alias: browserExcludedAlias,
   },
   lint: {
     options: {
