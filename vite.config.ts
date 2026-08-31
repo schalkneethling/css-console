@@ -55,9 +55,14 @@ export default defineConfig({
     "*.ts": "ast-grep scan",
   },
   pack: {
-    // The root tsconfig.json is a solution file with an empty file list, so
-    // declaration generation reads the entry project configuration instead.
-    tsconfig: "./src/tsconfig.json",
+    // The root tsconfig.json is a solution file with an empty file list, and
+    // ./src/tsconfig.json reaches the rest of the sources through project
+    // references, whose files a single compiler run does not emit. Neither
+    // shape produces the one declaration file per module that
+    // rolldown-plugin-dts reads back, so declaration generation gets a
+    // dedicated flat project. See src/tsconfig.build.json for the full
+    // reasoning and for why it does not weaken the import boundaries.
+    tsconfig: "./src/tsconfig.build.json",
     dts: {
       tsgo: true,
     },

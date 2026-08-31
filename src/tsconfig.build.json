@@ -1,0 +1,48 @@
+{
+  // Declaration emit for the packed artifact, and nothing else. No other
+  // command reads this file: `tsc --build` walks the solution file at the
+  // repository root, which references the per-directory composite projects
+  // and deliberately does not reference this one.
+  //
+  // `vp pack` generates declarations through rolldown-plugin-dts, which runs
+  // tsgo once over the project named by `pack.tsconfig` and then reads one
+  // declaration file per module in the bundle graph out of a temporary
+  // directory. The invocation is
+  // `tsgo --emitDeclarationOnly --noCheck -p <pack.tsconfig> --outDir <tmp>
+  // --rootDir <dirname of pack.tsconfig>`, built in
+  // node_modules/@voidzero-dev/vite-plus-core/dist/tsdown/dist-CxIM8o7n.js
+  // at line 1276, and the lookup that fails when a module is missing from
+  // that directory is at line 1428 of the same file.
+  //
+  // Pointing `pack.tsconfig` at ./tsconfig.json cannot satisfy that lookup.
+  // That project includes only `index.ts` and reaches the rest of `src/`
+  // through project references, and a referenced project's source files are
+  // not part of the referencing program: the compiler resolves those imports
+  // to the referenced project's own declaration output instead of compiling
+  // them. tsgo therefore emitted `index.d.ts` alone, and the plugin failed
+  // for all seven remaining modules in the graph.
+  //
+  // This project is flat instead: no `references`, no `composite`, and an
+  // include that covers every file under `src/`, so one tsgo run emits one
+  // declaration file per module, exactly what the plugin expects to read.
+  //
+  // Emitting from a flat project does not weaken the import boundaries
+  // described in section 5.2 of plans/implementation.md. Those boundaries are
+  // enforced by the composite projects under `src/`, which `tsc --build`
+  // walks on every `vp check` run: `src/core` still compiles with
+  // `lib: ["ES2025"]` and no DOM, and still references nothing. This file
+  // never type checks anything at all, because the plugin passes `--noCheck`,
+  // so it can neither grant nor withhold a global. `lib` here is the union
+  // the emitted declarations refer to, and `types` stays empty for the same
+  // reason it is empty in the composite projects: default `@types` resolution
+  // would otherwise pull ambient declarations into the emit.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "types": [],
+    "rootDir": ".",
+    "outDir": "../.tsbuild/pack"
+  },
+  "include": ["."],
+  "references": []
+}
