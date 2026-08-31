@@ -1,13 +1,21 @@
 import { expect, test } from "vite-plus/test";
 
-import { createConsoleAdapter, createCSSConsole } from "@schalkneethling/css-console";
+import {
+  createConsoleAdapter,
+  createCSSConsole,
+  DIAGNOSTIC_REGISTRY,
+} from "@schalkneethling/css-console";
 import type {
   BrowserFunctionRecord,
   BrowserScanEvent,
   BrowserScanSummary,
+  BrowserValueRecord,
   CallSite,
   ConsoleOutput,
+  Diagnostic,
   FunctionProbeStart,
+  GuardReason,
+  RawSourceInput,
   ValueProbeStart,
 } from "@schalkneethling/css-console";
 
@@ -124,9 +132,23 @@ async function runScan(
   css: string,
   options: { maxElements?: number } = {},
 ): Promise<Run> {
+  return runScanSources([{ id, css }], options);
+}
+
+/**
+ * Scans a list of raw sources with the console adapter subscribed, and returns
+ * the same shape `runScan()` returns. Several cases need more than one source
+ * in one scan, because a source that fails to parse compiles no probe of its
+ * own, so an error diagnostic and the probes it renders beside have to come
+ * from different sources.
+ */
+async function runScanSources(
+  rawSources: readonly RawSourceInput[],
+  options: { maxElements?: number } = {},
+): Promise<Run> {
   const cssConsole = createCSSConsole({
     sources: "none",
-    rawSources: [{ id, css }],
+    rawSources,
     ...(options.maxElements === undefined ? {} : { maxElements: options.maxElements }),
   });
   const recording = createRecordingOutput();
@@ -187,6 +209,120 @@ function functionRecords(events: readonly BrowserScanEvent[]): BrowserFunctionRe
   }
 
   return collected;
+}
+
+/** Every value record of a scan, in the order the scan emitted them. */
+function valueRecords(events: readonly BrowserScanEvent[]): BrowserValueRecord[] {
+  const collected: BrowserValueRecord[] = [];
+
+  for (const event of events) {
+    if (event.kind === "record" && event.record.kind === "value") {
+      collected.push(event.record);
+    }
+  }
+
+  return collected;
+}
+
+/** Every diagnostic of a scan, in the order the scan emitted them. */
+function diagnostics(events: readonly BrowserScanEvent[]): Diagnostic[] {
+  const collected: Diagnostic[] = [];
+
+  for (const event of events) {
+    if (event.kind === "diagnostic") {
+      collected.push(event.diagnostic);
+    }
+  }
+
+  return collected;
+}
+
+/** Every diagnostic of a scan carrying the named code, in emission order. */
+function diagnosticsWithCode(events: readonly BrowserScanEvent[], code: string): Diagnostic[] {
+  return diagnostics(events).filter((diagnostic) => diagnostic.code === code);
+}
+
+/** The one diagnostic of a scan carrying the named code, or a failure saying so. */
+function diagnosticWithCode(events: readonly BrowserScanEvent[], code: string): Diagnostic {
+  const matching = diagnosticsWithCode(events, code);
+  const [diagnostic] = matching;
+
+  if (diagnostic === undefined || matching.length !== 1) {
+    throw new Error(`expected exactly one ${code} diagnostic, saw ${matching.length}`);
+  }
+
+  return diagnostic;
+}
+
+/**
+ * The text one diagnostic dictates: the code, the message the engine carried,
+ * the source location when the diagnostic has one, and the documentation
+ * anchor on a line of its own. Everything is derived from the diagnostic the
+ * event stream published rather than restated, so an adapter rendering a
+ * different message or a different location fails the assertion.
+ */
+function expectedDiagnosticText(diagnostic: Diagnostic): string {
+  const location =
+    diagnostic.source === undefined
+      ? ""
+      : ` — ${diagnostic.source.url}:${diagnostic.source.start.line}:${diagnostic.source.start.column}`;
+
+  return `${diagnostic.code} — ${diagnostic.message}${location}\n${diagnostic.docsUrl}`;
+}
+
+/**
+ * Every recorded call that rendered a diagnostic of the named code. A rendered
+ * diagnostic opens its first argument with the code, which is what separates
+ * it from the adapter's other lines.
+ */
+function renderedDiagnostics(calls: readonly ConsoleCall[], code: string): readonly ConsoleCall[] {
+  return calls.filter(
+    (call) => typeof call.args[0] === "string" && call.args[0].startsWith(`${code} — `),
+  );
+}
+
+/** The one call that rendered the named code, or a failure saying so. */
+function renderedDiagnostic(calls: readonly ConsoleCall[], code: string): ConsoleCall {
+  const matching = renderedDiagnostics(calls, code);
+  const [call] = matching;
+
+  if (call === undefined || matching.length !== 1) {
+    throw new Error(`expected exactly one rendered ${code} line, saw ${matching.length}`);
+  }
+
+  return call;
+}
+
+/**
+ * The handoff line a contested guard dictates. The wording claims only what
+ * the guard claims: the guard never names a winner, so the instruction says
+ * the annotated declaration may not be the sole contributor rather than
+ * claiming it was overridden.
+ */
+function expectedHandoffLine(reasons: readonly GuardReason[]): string {
+  return `contested (${reasons.join(", ")}) — inspect this element in developer tools; the annotated declaration may not be the sole contributor`;
+}
+
+/**
+ * The first sentence of a registry meaning, used where a case needs the part
+ * of a meaning that carries the condition rather than the whole paragraph.
+ * The meaning itself is read from `DIAGNOSTIC_REGISTRY` rather than restated,
+ * so the registry stays the single source of truth for the wording.
+ */
+function firstSentence(meaning: string): string {
+  const [sentence] = meaning.split(". ");
+
+  return sentence ?? meaning;
+}
+
+/**
+ * The last sentence of a registry meaning, which is where the registry puts
+ * the remediation a reader is meant to act on.
+ */
+function lastSentence(meaning: string): string {
+  const sentences = meaning.split(". ");
+
+  return sentences.at(-1) ?? meaning;
 }
 
 /**
@@ -444,14 +580,18 @@ test("a line carries the authored value, the resolved value, and the contested m
     const text = lineText(body[0] as ConsoleCall);
 
     // The later declaration wins the cascade, so the authored value and the
-    // resolved value differ and each has to appear on its own account.
-    expect(body).toHaveLength(1);
+    // resolved value differ and each has to appear on its own account. The
+    // contested guard adds its CSSC-032 handoff line after the value line,
+    // so the body holds two calls and the value line is the first.
+    expect(body).toHaveLength(2);
     expect(text).toContain("rgb(6, 6, 6)");
     expect(text).toContain("rgb(7, 7, 7)");
 
     // The guard reports the value as contested, which the line marks; the
-    // reasons themselves are CSSC-032 and are not rendered here.
+    // reasons render on the handoff line, whose shape the CSSC-032 cases
+    // pin, rather than on the value line itself.
     expect(text).toContain("(contested)");
+    expect(String((body[1] as ConsoleCall).args[0])).toContain("contested (");
   });
 });
 
@@ -709,7 +849,7 @@ test("the global console is never replaced, and none of its methods are patched"
   }
 });
 
-test("diagnostics render nothing while value and function probes render side by side", async () => {
+test("a diagnostic renders beside the value and function probes it shares a scan with", async () => {
   const css = `/* css-console: log margin-left */
 .console-mixed { margin-left: 16px; }
 
@@ -728,12 +868,19 @@ test("diagnostics render nothing while value and function probes render side by 
   await withFixture(`<p class="console-mixed"></p>`, css, async () => {
     const run = await runScan("console-mixed", css);
 
-    // The annotation before @media is not a target, so the scan reports a
-    // diagnostic the adapter renders nothing for; CSSC-032 owns diagnostics,
-    // and nothing in the recorded output names the code.
+    // The annotation before @media is not a target, so the scan reports one
+    // warning, and the adapter renders it exactly once through `warn`. The
+    // diagnostic is a source-level one, so it renders at the top level rather
+    // than inside either probe's group.
     expect(run.summary.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["NOT_A_TARGET"]);
-    expect(run.calls.some((call) => lineText(call).includes("NOT_A_TARGET"))).toBe(false);
-    expect(run.calls.some((call) => call.method === "warn" || call.method === "error")).toBe(false);
+
+    const rendered = renderedDiagnostic(run.calls, "NOT_A_TARGET");
+
+    expect(rendered.method).toBe("warn");
+    expect(rendered.args[0]).toBe(
+      expectedDiagnosticText(diagnosticWithCode(run.events, "NOT_A_TARGET")),
+    );
+    expect(run.calls.filter((call) => call.method === "error")).toHaveLength(0);
 
     // Both probe kinds render their own group, and the function probe nests a
     // group for its one call site, so the scan opens three groups in total.
@@ -1066,5 +1213,342 @@ test("a function probe over its match budget renders the truncation line with th
     // The truncation line closes the body, after every call-site group.
     expect(body.at(-1)?.method).toBe("log");
     expect(body.at(-1)?.args[0]).toBe("evaluated 4 of 6 matches, 2 omitted (maxElements)");
+  });
+});
+
+test("each diagnostic severity renders through its own method, with the code, the message, the location, and the anchor", async () => {
+  // Three severities in one scan. The error has to come from a second raw
+  // source, because a source that fails to parse compiles no probe of its
+  // own, so the informational and warning conditions could not live in it.
+  const css = `/* css-console: log */
+@function --console-diag-idle(--n) {
+  result: calc(var(--n) * 3px);
+}
+
+/* css-console: watch color */
+.console-diag-watch { color: rgb(2, 3, 4); }`;
+  const malformed = `.console-diag-broken { color: rgb(5, 6, 7); `;
+
+  await withFixture(`<p class="console-diag-watch"></p>`, css, async () => {
+    const run = await runScanSources([
+      { id: "console-diag-mix", css },
+      { id: "console-diag-broken", css: malformed },
+    ]);
+
+    // Observed against the engine: the annotated function with no call site
+    // reports an informational diagnostic, the reserved `watch` log level
+    // reports a warning, and the unclosed block reports an error.
+    expect(
+      diagnostics(run.events)
+        .map((diagnostic) => diagnostic.code)
+        .toSorted(),
+    ).toEqual(["NO_CALL_SITES", "SOURCE_PARSE_FAILED", "WATCH_RESERVED"]);
+
+    const expectations = [
+      { code: "NO_CALL_SITES", severity: "info", method: "info" },
+      { code: "WATCH_RESERVED", severity: "warning", method: "warn" },
+      { code: "SOURCE_PARSE_FAILED", severity: "error", method: "error" },
+    ] as const;
+
+    for (const { code, severity, method } of expectations) {
+      const diagnostic = diagnosticWithCode(run.events, code);
+      const call = renderedDiagnostic(run.calls, code);
+      const text = String(call.args[0]);
+
+      // The severity the registry assigns is the adapter's only lever, so the
+      // method a diagnostic renders through follows from it alone.
+      expect(DIAGNOSTIC_REGISTRY[code].severity).toBe(severity);
+      expect(diagnostic.severity).toBe(severity);
+      expect(call.method).toBe(method);
+
+      // The text carries the code, the message the engine published, the
+      // location the diagnostic pointed at, and the documentation anchor on a
+      // line of its own, so a reader can open the anchor without reading past
+      // anything else on that line.
+      expect(text).toBe(expectedDiagnosticText(diagnostic));
+      expect(text.startsWith(`${code} — `)).toBe(true);
+      expect(text).toContain(diagnostic.message);
+      expect(text.split("\n").at(-1)).toBe(DIAGNOSTIC_REGISTRY[code].docsUrl);
+
+      const source = diagnostic.source;
+
+      expect(source).toBeDefined();
+      expect(text).toContain(
+        ` — ${(source as NonNullable<Diagnostic["source"]>).url}:${(source as NonNullable<Diagnostic["source"]>).start.line}:${(source as NonNullable<Diagnostic["source"]>).start.column}`,
+      );
+
+      // The details object travels live rather than stringified, so developer
+      // tools offers the engine's own facts beside the registry's meaning.
+      if (diagnostic.details === undefined) {
+        expect(call.args).toHaveLength(1);
+      } else {
+        expect(call.args[1]).toBe(diagnostic.details);
+      }
+    }
+
+    // Observed against the engine: `WATCH_RESERVED` carries no details, while
+    // the other two do, so the case covers both argument shapes.
+    expect(diagnosticWithCode(run.events, "WATCH_RESERVED").details).toBeUndefined();
+    expect(diagnosticWithCode(run.events, "NO_CALL_SITES").details).toBeDefined();
+    expect(diagnosticWithCode(run.events, "SOURCE_PARSE_FAILED").details).toBeDefined();
+  });
+});
+
+test("a not-a-target diagnostic renders its remediation and a deferred one renders its gap", async () => {
+  const css = `/* css-console: log color */
+@media (min-width: 1px) {
+  .console-remediation { color: rgb(3, 4, 5); }
+}
+
+/* css-console: watch color */
+.console-remediation { color: rgb(3, 4, 5); }`;
+
+  await withFixture(`<p class="console-remediation"></p>`, css, async () => {
+    const run = await runScan("console-remediation", css);
+    const notATarget = String(renderedDiagnostic(run.calls, "NOT_A_TARGET").args[0]);
+    const watchReserved = String(renderedDiagnostic(run.calls, "WATCH_RESERVED").args[0]);
+
+    // Rendering the registry's meaning is the whole of what carries
+    // remediation and what makes a postponed feature read as one: the
+    // expectations are read from the registry rather than restated here.
+    expect(notATarget).toContain(DIAGNOSTIC_REGISTRY.NOT_A_TARGET.meaning);
+    expect(notATarget).toContain(lastSentence(DIAGNOSTIC_REGISTRY.NOT_A_TARGET.meaning));
+    expect(watchReserved).toContain(DIAGNOSTIC_REGISTRY.WATCH_RESERVED.meaning);
+    expect(watchReserved).toContain(firstSentence(DIAGNOSTIC_REGISTRY.WATCH_RESERVED.meaning));
+
+    // The two categories stay distinguishable in the rendered text, which is
+    // what the three-way scope split depends on.
+    expect(DIAGNOSTIC_REGISTRY.NOT_A_TARGET.category).toBe("not-a-target");
+    expect(DIAGNOSTIC_REGISTRY.WATCH_RESERVED.category).toBe("deferred");
+  });
+});
+
+test("an identical diagnostic repeated within one scan renders once", async () => {
+  // Two raw sources share one id and one malformed body, so the engine
+  // reports the parse failure twice at one location beside a single
+  // duplicate-identity warning. Observed against the engine: both parse
+  // failures land at raw:console-dedup:1:1 with the same details.
+  const malformed = `.console-dedup { color: rgb(1, 1, 1); `;
+
+  await withFixture(`<p class="console-dedup"></p>`, "", async () => {
+    const run = await runScanSources([
+      { id: "console-dedup", css: malformed },
+      { id: "console-dedup", css: malformed },
+    ]);
+    const failures = diagnosticsWithCode(run.events, "SOURCE_PARSE_FAILED");
+    const [first, second] = failures as [Diagnostic, Diagnostic];
+
+    // The stream really does carry the repeat, so the single rendered line
+    // below is the adapter deduplicating rather than the engine never
+    // repeating itself.
+    expect(failures).toHaveLength(2);
+    expect(first.source).toEqual(second.source);
+    expect(JSON.stringify(first.details)).toBe(JSON.stringify(second.details));
+    expect(diagnosticsWithCode(run.events, "DUPLICATE_SOURCE_IDENTITY")).toHaveLength(1);
+
+    // Identical repeats carry no additional information, so the repeat
+    // renders once, and the warning that explains the shared identity renders
+    // on its own account.
+    expect(renderedDiagnostics(run.calls, "SOURCE_PARSE_FAILED")).toHaveLength(1);
+    expect(renderedDiagnostic(run.calls, "SOURCE_PARSE_FAILED").method).toBe("error");
+
+    const duplicate = renderedDiagnostic(run.calls, "DUPLICATE_SOURCE_IDENTITY");
+
+    expect(duplicate.method).toBe("warn");
+    expect(duplicate.args[0]).toBe(
+      expectedDiagnosticText(diagnosticWithCode(run.events, "DUPLICATE_SOURCE_IDENTITY")),
+    );
+
+    // Observed against the engine: the duplicate-identity warning carries no
+    // source location, so its text carries no location either.
+    expect(diagnosticWithCode(run.events, "DUPLICATE_SOURCE_IDENTITY").source).toBeUndefined();
+    expect(String(duplicate.args[0])).not.toContain("raw:console-dedup:");
+  });
+});
+
+test("two diagnostics that differ only in their location both render", async () => {
+  const malformed = `.console-distinct { color: rgb(2, 2, 2); `;
+
+  await withFixture(`<p class="console-distinct"></p>`, "", async () => {
+    const run = await runScanSources([
+      { id: "console-distinct-one", css: malformed },
+      { id: "console-distinct-two", css: malformed },
+    ]);
+    const failures = diagnosticsWithCode(run.events, "SOURCE_PARSE_FAILED");
+    const rendered = renderedDiagnostics(run.calls, "SOURCE_PARSE_FAILED");
+
+    // The two failures share a code, a message, and their details, and differ
+    // only in the source location, which is part of the deduplication key.
+    expect(failures).toHaveLength(2);
+    expect(failures[0]?.source).not.toEqual(failures[1]?.source);
+    expect(rendered).toHaveLength(2);
+    expect(rendered.map((call) => call.args[0])).toEqual(
+      failures.map((diagnostic) => expectedDiagnosticText(diagnostic)),
+    );
+  });
+});
+
+test("the seen set clears between scans, so a second scan renders the same diagnostic again", async () => {
+  const malformed = `.console-rescan { color: rgb(3, 3, 3); `;
+
+  await withFixture(`<p class="console-rescan"></p>`, "", async () => {
+    const cssConsole = createCSSConsole({
+      sources: "none",
+      rawSources: [
+        { id: "console-rescan", css: malformed },
+        { id: "console-rescan", css: malformed },
+      ],
+    });
+    const recording = createRecordingOutput();
+
+    cssConsole.subscribe(createConsoleAdapter({ output: recording.output }));
+
+    try {
+      await cssConsole.scan();
+      await cssConsole.scan();
+
+      // Deduplication is per scan rather than per adapter: each scan renders
+      // its own repeat once, so two scans render the line twice in total.
+      expect(renderedDiagnostics(recording.calls, "SOURCE_PARSE_FAILED")).toHaveLength(2);
+      expect(renderedDiagnostics(recording.calls, "DUPLICATE_SOURCE_IDENTITY")).toHaveLength(2);
+    } finally {
+      cssConsole.dispose();
+    }
+  });
+});
+
+test("a contested single-record value renders the handoff line beside the live element", async () => {
+  const css = `/* css-console: log color */
+.console-handoff-single { color: rgb(6, 6, 6); }
+.console-handoff-single { color: rgb(7, 7, 7); }`;
+
+  await withFixture(`<p class="console-handoff-single"></p>`, css, async (host) => {
+    const run = await runScan("console-handoff-single", css);
+    const body = groupBody(run.calls, titleFor(run.starts, ".console-handoff-single"));
+    const target = elementIn(host, ".console-handoff-single");
+    const [record] = valueRecords(run.events);
+    const value = (record as BrowserValueRecord).values[0];
+
+    // Observed against the engine: the later declaration makes the guard
+    // report one reason, `competing-declaration`.
+    expect(value?.guard.contested).toBe(true);
+    expect(value?.guard.reasons).toEqual(["competing-declaration"]);
+
+    // The value line keeps exactly the marker CSSC-030 pinned, and the
+    // handoff line follows it rather than replacing anything on it.
+    expect(body).toHaveLength(2);
+    expect(lineText(body[0] as ConsoleCall)).toContain("(contested)");
+
+    const handoff = body[1] as ConsoleCall;
+
+    expect(handoff.method).toBe((record as BrowserValueRecord).logLevel);
+    expect(handoff.args[0]).toBe(expectedHandoffLine(["competing-declaration"]));
+
+    // The instruction claims only what the guard claims: the guard never
+    // names a winner, so the line offers the element for inspection instead.
+    expect(String(handoff.args[0])).toContain("may not be the sole contributor");
+    expect(String(handoff.args[0])).not.toContain("overridden");
+    expect(handoff.args.at(-1)).toBe(target);
+  });
+});
+
+test("a contested table renders one handoff line per contested pair, in row order", async () => {
+  const css = `/* css-console: log color */
+.console-handoff-table { color: rgb(6, 6, 6); }
+.console-handoff-table { color: rgb(7, 7, 7); }`;
+  const markup = `<p class="console-handoff-table" id="console-handoff-first"></p>
+<p class="console-handoff-table" id="console-handoff-second"></p>`;
+
+  await withFixture(markup, css, async (host) => {
+    const run = await runScan("console-handoff-table", css);
+    const body = groupBody(run.calls, titleFor(run.starts, ".console-handoff-table"));
+    const records = valueRecords(run.events);
+
+    expect(records).toHaveLength(2);
+    expect(records.every((record) => record.values[0]?.guard.contested === true)).toBe(true);
+
+    // The table itself is unchanged: one call, one row per record-value pair,
+    // with the contested column still carrying the guard's own answer.
+    const tables = body.filter((call) => call.method === "table");
+
+    expect(tables).toHaveLength(1);
+
+    const rows = (tables[0] as ConsoleCall).args[0] as ReadonlyArray<Record<string, unknown>>;
+
+    expect(rows.map((row) => row.contested)).toEqual([true, true]);
+
+    // The handoff lines follow the table, one per contested pair, in row
+    // order, and each carries its own element rather than the probe's first.
+    expect(body.map((call) => call.method)).toEqual(["table", "log", "log"]);
+    expect((body[1] as ConsoleCall).args[0]).toBe(expectedHandoffLine(["competing-declaration"]));
+    expect((body[2] as ConsoleCall).args[0]).toBe(expectedHandoffLine(["competing-declaration"]));
+    expect((body[1] as ConsoleCall).args.at(-1)).toBe(elementIn(host, "#console-handoff-first"));
+    expect((body[2] as ConsoleCall).args.at(-1)).toBe(elementIn(host, "#console-handoff-second"));
+  });
+});
+
+test("a contested function record renders the handoff line after its call-site table", async () => {
+  const css = `/* css-console: log */
+@function --console-handoff-fn(--n) {
+  result: calc(var(--n) * 10px);
+}
+
+.console-handoff-call { padding-top: --console-handoff-fn(4); }
+.console-handoff-call { padding-top: 3px; }`;
+
+  await withFixture(`<p class="console-handoff-call"></p>`, css, async (host) => {
+    const run = await runScan("console-handoff-fn", css);
+    const body = groupBody(run.calls, functionTitleFor(run.functionStarts, "--console-handoff-fn"));
+    const [record] = functionRecords(run.events);
+
+    // Observed against the engine: a second rule declaring the destination
+    // property makes the guard report `competing-declaration` on the function
+    // record itself.
+    expect(record?.guard.contested).toBe(true);
+    expect(record?.guard.reasons).toEqual(["competing-declaration"]);
+
+    // The line lands inside the call-site group, after the table it belongs
+    // to, so a reader meets the instruction beside the row it is about.
+    expect(body.map((call) => call.method)).toEqual([
+      "log",
+      "groupCollapsed",
+      "table",
+      "log",
+      "groupEnd",
+    ]);
+
+    const handoff = body[3] as ConsoleCall;
+
+    expect(handoff.method).toBe((record as BrowserFunctionRecord).logLevel);
+    expect(handoff.args[0]).toBe(expectedHandoffLine(["competing-declaration"]));
+    expect(handoff.args.at(-1)).toBe(elementIn(host, ".console-handoff-call"));
+  });
+});
+
+test("a probe-level diagnostic renders inside the probe's group, before the body", async () => {
+  // The compiler accepts the second branch and the browser's selector engine
+  // refuses it, which is the established fixture in test/browser/events.test.ts
+  // for a diagnostic born inside a probe rather than during compilation.
+  const css = `/* css-console: log color */
+.console-branch, .console-branch-broken:not-a-real-pseudo-class { color: rgb(1, 2, 3); }`;
+
+  await withFixture(`<p class="console-branch"></p>`, css, async () => {
+    const run = await runScan("console-branch", css);
+    const [start] = run.starts;
+
+    expect(start).toBeDefined();
+
+    const diagnostic = diagnosticWithCode(run.events, "UNPARSEABLE_SELECTOR_BRANCH");
+    const body = groupBody(run.calls, expectedTitle(start as ValueProbeStart));
+
+    // The ordering contract puts a probe's diagnostics before its records, and
+    // the body renders at probe-summary, so the diagnostic opens the group.
+    expect(body.map((call) => call.method)).toEqual(["warn", "log"]);
+    expect((body[0] as ConsoleCall).args[0]).toBe(expectedDiagnosticText(diagnostic));
+    expect((body[0] as ConsoleCall).args[1]).toBe(diagnostic.details);
+    expect(lineText(body[1] as ConsoleCall)).toContain("color");
+
+    // Nothing renders the diagnostic a second time at the top level.
+    expect(renderedDiagnostics(run.calls, "UNPARSEABLE_SELECTOR_BRANCH")).toHaveLength(1);
   });
 });
