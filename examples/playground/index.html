@@ -78,39 +78,33 @@
   <body>
     <h1>The css-console playground</h1>
     <p class="lede">
-      Nine annotated declarations, nine questions the CSS source cannot answer on its own, and one
-      browser console report that answers all of them.
+      Nine annotated declarations, and one browser console report showing what the engine resolved
+      for each of them.
     </p>
 
     <div class="intro">
       <h2>How to read this page</h2>
       <p>
-        css-console turns a comment in your CSS into a live report about what the browser actually
-        resolved. Every case below is annotated in
-        <code>examples/playground/playground.css</code>, the one stylesheet this page links, and
-        every annotation follows the same grammar:
+        css-console turns a comment in your CSS into a report of what the browser resolved. Every
+        case below is annotated in <code>examples/playground/playground.css</code> using the grammar
         <code>css-console: &lt;log-level&gt; [property-list] [label="..."]</code>.
       </p>
       <ol>
         <li>
-          Serve the repository with <code>vp dev</code>, and open this page at
+          Serve the repository with <code>vp dev</code>, and open
           <code>/examples/playground/index.html</code>.
         </li>
         <li>Open the browser console, and reload the page.</li>
         <li>
-          Expand the group whose title carries the label of the case you are reading, for example
-          <code>[case-1]</code>.
+          Expand the group labeled with the case you are reading, such as <code>[case-1]</code>.
         </li>
       </ol>
       <p>
-        A group title names the source, the line, the column, and the selector the engine resolved.
-        Inside the group, each line reads
-        <code>property: authored value → resolved value</code>, so the value you wrote and the value
-        the browser computed sit beside each other. A value that ends in
-        <code>(contested)</code> carries a second line, the handoff, which names the reason another
-        declaration may have contributed to what you are seeing and hands the question to your
-        developer tools. The report never claims a winner, because the guard reports facts rather
-        than resolving the cascade for you.
+        A group title names the source, the line, the column, and the resolved selector, and each
+        line inside reads <code>property: authored value → resolved value</code>. A value ending in
+        <code>(contested)</code> carries a handoff line naming why another declaration may have
+        contributed, and passes the question to your developer tools. The report never claims a
+        winner.
       </p>
     </div>
 
@@ -120,12 +114,10 @@
         A custom function, resolved at every call site
       </h2>
       <p class="question">
-        A custom function has no value of its own. It has a result, and the result exists only where
-        the function is called, on the element that called it. Reading
-        <code>@function --case-1-step()</code> tells you the arithmetic, and tells you nothing about
-        the numbers, because the numbers arrive from the custom property each matched element
-        carries. This function is called from two properties in two rules, so it produces two call
-        sites, and one of those call sites matches three elements that disagree about the unit.
+        A custom function has no value of its own, only a result at each call site, and the number
+        arrives from a custom property on the matched element. Two rules call
+        <code>--case-1-step()</code>, and one of those call sites matches three elements with
+        different units.
       </p>
       <div class="demo">
         <div class="stack">
@@ -147,10 +139,9 @@
         </p>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-1] --case-1-step</code>, holding one collapsed
-        group per call site. Each call-site group names the destination property, the arguments as
-        authored, and the selector, and holds one table of the resolved property values, one row per
-        matched element.
+        In the console: one group titled <code>[case-1] --case-1-step</code>, with a collapsed group
+        per call site. Each names its destination property, authored arguments, and selector, then
+        tables one resolved value per matched element.
       </p>
       <p class="source-title">The source</p>
       <pre><code>/* css-console: log label="case-1" */
@@ -180,10 +171,9 @@
       </h2>
       <p class="question">
         The two declarations below are character for character identical, and they paint different
-        colors, because each one mixes a brand color its own section supplies. The authored value
-        names a mixing space, a percentage, and a variable, and the color you see is none of those
-        three: it is the result the engine computed in <code>oklch</code> and then serialized. The
-        report shows the mix as you wrote it and the concrete color it became.
+        colors, because each section supplies its own brand color. The report shows the
+        <code>color-mix()</code> you wrote beside the color the engine computed in
+        <code>oklch</code> and serialized.
       </p>
       <div class="demo pair">
         <div class="case-2-panel case-2-warm">
@@ -197,8 +187,7 @@
       </div>
       <p class="watch">
         In the console: two groups titled <code>[case-2]</code>, one per themed selector. Each holds
-        a single line carrying a color swatch, the authored <code>color-mix()</code>, and the
-        resolved color, and neither resolved color contains a variable or a mix function any more.
+        one line with a color swatch, the authored <code>color-mix()</code>, and the resolved color.
       </p>
       <p class="source-title">The source</p>
       <pre><code>.case-2-warm { --case-2-brand: oklch(0.68 0.18 45); }
@@ -222,9 +211,8 @@
       </h2>
       <p class="question">
         A <code>cqi</code> length is one percent of the inline size of the nearest query container,
-        so a single declaration has as many values as it has containers. The source names a
-        fraction, never a size, and the size belongs to an ancestor the declaration does not
-        mention. The two captions below share one rule and live in containers of different widths.
+        so one declaration has as many values as it has containers. The two captions below share a
+        rule and sit in containers of different widths.
       </p>
       <div class="demo stack">
         <div class="case-3-container case-3-wide">
@@ -235,9 +223,9 @@
         </div>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-3] .case-3-caption</code>, holding a table with
-        one row per caption. The authored column reads <code>6cqi</code> in both rows, and the
-        resolved column reads two different pixel values.
+        In the console: one group titled <code>[case-3] .case-3-caption</code>, with a row per
+        caption. Both rows read <code>6cqi</code> as authored, and two different pixel values as
+        resolved.
       </p>
       <p class="source-title">The source</p>
       <pre><code>.case-3-container {
@@ -259,11 +247,10 @@
         A clamp, at both bounds and between them
       </h2>
       <p class="question">
-        A <code>clamp()</code> has three regimes, and a declaration tells you which three values are
-        involved without telling you which regime any element is in. The fluid middle here is a
-        per-element custom property rather than a viewport length, so all three regimes are visible
-        at once, at any window size: the first bar is pinned at the lower bound, the second is
-        genuinely fluid, and the third is pinned at the upper bound.
+        A <code>clamp()</code> has three regimes, and the declaration does not say which one an
+        element is in. Here the fluid middle is a per-element custom property, so all three show at
+        once: the first bar sits at the lower bound, the second is fluid, and the third sits at the
+        upper bound.
       </p>
       <div class="demo stack">
         <div class="pair">
@@ -279,14 +266,13 @@
           <div class="case-4-bar case-4-pull-high"></div>
         </div>
         <p class="demo-note">
-          The first bar and the third bar ignore their custom property entirely, which is the whole
-          point of a bound.
+          The first bar and the third bar ignore their custom property, which is what a bound does.
         </p>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-4] .case-4-bar</code>, holding a table of three
-        rows. Every row repeats the same authored <code>clamp()</code>, and the resolved column
-        shows the lower bound, a value strictly between the bounds, and the upper bound.
+        In the console: one group titled <code>[case-4] .case-4-bar</code>, with three rows. Every
+        row repeats the same authored <code>clamp()</code>, and the resolved values are the lower
+        bound, a value between the bounds, and the upper bound.
       </p>
       <p class="source-title">The source</p>
       <pre><code>.case-4-pull-low { --case-4-pull: 2rem; }
@@ -305,11 +291,9 @@
         A custom property, at the end of its inheritance chain
       </h2>
       <p class="question">
-        The leaf declaration below reads <code>var(--case-5-tone)</code> and stops there. Which
-        declaration of <code>--case-5-tone</code> reached any particular leaf is a question about
-        the tree the leaf sits in, not about the rule, and a stylesheet that declares the property
-        in several places cannot answer it by inspection. Both leaves match the same rule, and only
-        one of them inherits the value declared halfway down.
+        The leaf rule below reads <code>var(--case-5-tone)</code>, and which declaration of that
+        property arrives depends on where the leaf sits in the tree. Both leaves match the one rule,
+        and only one of them inherits the tone declared halfway down.
       </p>
       <div class="demo case-5-root">
         <p class="case-5-leaf">A leaf directly under the root, which declares the tone.</p>
@@ -318,9 +302,8 @@
         </div>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-5] .case-5-leaf</code>, holding a table with
-        one row per leaf. Both rows were authored as <code>var(--case-5-tone)</code>, and the
-        resolved colors differ, because the value that arrived differed.
+        In the console: one group titled <code>[case-5] .case-5-leaf</code>, with a row per leaf.
+        Both rows were authored as <code>var(--case-5-tone)</code>, and the resolved colors differ.
       </p>
       <p class="source-title">The source</p>
       <pre><code>.case-5-root { --case-5-tone: oklch(0.55 0.15 250); }
@@ -339,10 +322,8 @@
       </h2>
       <p class="question">
         A <code>::before</code> pseudo-element has no element in the document, so it cannot be
-        selected, inspected, or measured the way an element can. Its content comes from an
-        attribute, and its width follows from that content, which means the width lives in the
-        markup, in the font, and in the layout, and nowhere in the declaration. css-console reads
-        the pseudo-element directly and reports what it measured.
+        selected or measured the way an element can. Its content comes from an attribute and its
+        width follows from that content, so css-console reads the pseudo-element directly.
       </p>
       <div class="demo">
         <span class="case-6-tag" data-tag="draft"></span>
@@ -350,9 +331,9 @@
         <span class="case-6-tag" data-tag="ready to ship"></span>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-6] .case-6-tag::before</code>, holding a table
-        with one row per tag. The authored column reads <code>max-content</code> every time, and the
-        resolved widths grow with the label the attribute supplied.
+        In the console: one group titled <code>[case-6] .case-6-tag::before</code>, with a row per
+        tag. Every row reads <code>max-content</code> as authored, and the resolved widths grow with
+        the label.
       </p>
       <p class="source-title">The source</p>
       <pre><code>/* css-console: log width label="case-6" */
@@ -368,12 +349,11 @@
         A random value, behind a feature query
       </h2>
       <p class="question">
-        The <code>random()</code> function returns a value the source cannot state by definition,
-        and it is new enough that a browser may not implement it at all. The declaration is
-        therefore guarded by <code>@supports (width: random(1px, 2px))</code>. That guard is worth
-        watching for its own sake: css-console evaluates a rule's conditions against the live
-        engine, so where the feature query fails the group still opens, from the source, and reports
-        nothing, because nothing applied.
+        The <code>random()</code> function returns a value the source cannot state, and a browser
+        may not implement it yet, so the declaration sits behind
+        <code>@supports (width: random(1px, 2px))</code>. css-console evaluates a rule's conditions
+        against the live engine. Where the feature query fails, the group still opens, from the
+        source, and reports nothing, because nothing applied.
       </p>
       <div class="demo stack">
         <div class="case-7-die"></div>
@@ -381,15 +361,13 @@
         <div class="case-7-die"></div>
         <p class="case-7-notice">
           This browser does not support <code>random()</code>, so the guarded declaration never
-          applied, the bars above have no width of their own, and the console group for this case is
-          empty. That empty group is the report: the rule exists in the source, and this engine is
-          not using it.
+          applied and the console group for this case is empty. That empty group is the report: the
+          rule is in the source, and this engine is not using it.
         </p>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-7] .case-7-die</code>. In an engine that
-        supports <code>random()</code> it holds one resolved width per bar. In an engine that does
-        not, it holds nothing at all.
+        In the console: one group titled <code>[case-7] .case-7-die</code>, holding one resolved
+        width per bar where <code>random()</code> is supported, and nothing at all where it is not.
       </p>
       <p class="source-title">The source</p>
       <pre><code>@supports (width: random(1px, 2px)) {
@@ -413,10 +391,9 @@
       </h2>
       <p class="question">
         CSS nesting substitutes the parent rule into the child through <code>:is()</code>, which
-        preserves matching behavior and specificity, and produces a selector no line of the source
-        contains. Two levels of nesting are enough for the resolved selector to stop resembling
-        anything you wrote. css-console resolves nesting before it matches, so the group title is
-        the selector the engine used rather than the spelling the stylesheet carries.
+        produces a selector no line of the source contains. css-console resolves nesting before it
+        matches, so the group title is the selector the engine used rather than the spelling the
+        stylesheet carries.
       </p>
       <div class="demo case-8-panel">
         <div class="case-8-row">
@@ -426,8 +403,7 @@
       </div>
       <p class="watch">
         In the console: one group titled <code>[case-8]</code> whose selector is a nest of
-        <code>:is()</code> wrappers. Compare it to the three lines of source below, and note that
-        the title appears in neither.
+        <code>:is()</code> wrappers. Compare it to the source below, which does not contain it.
       </p>
       <p class="source-title">The source</p>
       <pre><code>.case-8-panel {
@@ -447,11 +423,9 @@
       </h2>
       <p class="question">
         The rule below sets <code>margin-left</code>, and then sets <code>margin</code>, which sets
-        <code>margin-left</code> again. A report that showed only the annotated declaration and the
-        resolved value would be quietly misleading, because the resolved value did not come from the
-        annotated declaration. The guard exists for exactly this: it reports that the annotated
-        declaration may not be the sole contributor, names why, and hands you the live element. It
-        never names a winner, because deciding the cascade is the job of your developer tools.
+        <code>margin-left</code> again. Reporting only the annotated declaration would mislead,
+        because the resolved value did not come from it. The guard reports that the declaration may
+        not be the sole contributor, names why, and hands you the live element rather than a winner.
       </p>
       <div class="demo">
         <p class="case-9-card">
@@ -460,11 +434,10 @@
         </p>
       </div>
       <p class="watch">
-        In the console: one group titled <code>[case-9] .case-9-card</code>, holding a line that
-        ends in <code>(contested)</code>, followed by a handoff line reading
-        <code>contested (competing-declaration)</code> and the instruction to inspect the element.
-        The live element travels with that line, so clicking it in the console takes you to the box
-        the report is about.
+        In the console: one group titled <code>[case-9] .case-9-card</code>, holding a line ending
+        in <code>(contested)</code> and a handoff line reading
+        <code>contested (competing-declaration)</code> with an instruction to inspect the element.
+        The live element travels with that line, so clicking it takes you to the box.
       </p>
       <p class="source-title">The source</p>
       <pre><code>/* css-console: log margin-left label="case-9" */
