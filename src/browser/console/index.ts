@@ -29,6 +29,22 @@
  * adapter attributes every value record it sees to the most recently opened,
  * not yet summarized, value probe.
  *
+ * An aborted scan is not observable from the event stream, and the adapter
+ * therefore does not recover from one. An aborted scan rejects with
+ * `AbortError` and emits no summary, while the events it already delivered
+ * stay delivered (see the abort section of `src/browser/scanner/index.ts`),
+ * and `ScanEvent` in `src/core/records/index.ts` carries no scan-start
+ * marker, no scan identifier, and no abort event. A plain subscriber
+ * consequently cannot tell an aborted scan's last event from a continuing
+ * one, so the next scan on the same adapter renders under the interrupted
+ * scan's timer, reports its completion line against that older label, and,
+ * when the abort landed between a probe-start and its probe-summary, renders
+ * inside a group that was never closed. Guessing at a scan boundary from
+ * event patterns is deliberately not attempted, because a wrong guess would
+ * corrupt correct streams. A consumer that aborts scans should subscribe a
+ * fresh adapter for the scans that follow; the alternative is an event
+ * contract that carries a scan boundary, which this release does not define.
+ *
  * The adapter adds no try/catch of its own. Subscriber isolation is the
  * scanner's own guarantee (see `src/browser/scanner/index.ts`), and the
  * adapter stays thin rather than duplicating it. `output` defaults to
