@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>css-console playground</title>
+    <!-- The `?direct` query is Vite's: the development server answers a plain
+      `.css` request with a JavaScript module wrapping the CSS, and answers
+      `?direct` with the stylesheet text itself. The href is relative so that
+      the same page also styles itself when it is opened from the file
+      system, where the query is simply ignored. -->
+    <link rel="stylesheet" href="playground.css?direct" />
+    <script type="module">
+      // The only script on the page. It runs one scan and publishes the
+      // outcome on the root element, which is what the end-to-end lane
+      // synchronizes on, and it does nothing else: every section, every
+      // demonstration, and every source block is present and styled without
+      // it.
+      //
+      // The import is guarded on the protocol, the same way the manual
+      // testing documents guard theirs, because `/src/index.ts` is served by
+      // the development server and cannot resolve from the file system.
+      // Opened from a `file://` URL, the page therefore degrades to a
+      // readable document with no console error at all.
+
+      /** Resolves once the document has been parsed. */
+      function documentReady() {
+        if (document.readyState !== "loading") {
+          return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+          document.addEventListener("DOMContentLoaded", resolve, { once: true });
+        });
+      }
+
+      /**
+       * Resolves once every linked stylesheet has settled, so that the values
+       * the scan reads are the ones the engine already applied rather than
+       * the ones it happened to have mid-load.
+       */
+      function stylesheetsSettled() {
+        const links = [...document.querySelectorAll('link[rel="stylesheet"]')];
+
+        return Promise.all(
+          links.map((link) => {
+            if (link.sheet !== null) {
+              return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+              link.addEventListener("load", resolve, { once: true });
+              link.addEventListener("error", resolve, { once: true });
+            });
+          }),
+        );
+      }
+
+      if (globalThis.location.protocol !== "file:") {
+        try {
+          const { createCSSConsole, createConsoleAdapter } = await import("/src/index.ts");
+
+          await documentReady();
+          await stylesheetsSettled();
+
+          const cssConsole = createCSSConsole();
+
+          cssConsole.subscribe(createConsoleAdapter());
+          await cssConsole.scan();
+          document.documentElement.dataset.scanState = "complete";
+        } catch (error) {
+          document.documentElement.dataset.scanState = "failed";
+          globalThis.console.error("css-console: the playground scan did not complete", error);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h1>The css-console playground</h1>
+    <p class="lede">
+      Nine annotated declarations, nine questions the CSS source cannot answer on its own, and one
+      browser console report that answers all of them.
+    </p>
+
+    <div class="intro">
+      <h2>How to read this page</h2>
+      <p>
+        css-console turns a comment in your CSS into a live report about what the browser actually
+        resolved. Every case below is annotated in
+        <code>examples/playground/playground.css</code>, the one stylesheet this page links, and
+        every annotation follows the same grammar:
+        <code>css-console: &lt;log-level&gt; [property-list] [label="..."]</code>.
+      </p>
+      <ol>
+        <li>
+          Serve the repository with <code>vp dev</code>, and open this page at
+          <code>/examples/playground/index.html</code>.
+        </li>
+        <li>Open the browser console, and reload the page.</li>
+        <li>
+          Expand the group whose title carries the label of the case you are reading, for example
+          <code>[case-1]</code>.
+        </li>
+      </ol>
+      <p>
+        A group title names the source, the line, the column, and the selector the engine resolved.
+        Inside the group, each line reads
+        <code>property: authored value → resolved value</code>, so the value you wrote and the value
+        the browser computed sit beside each other. A value that ends in
+        <code>(contested)</code> carries a second line, the handoff, which names the reason another
+        declaration may have contributed to what you are seeing and hands the question to your
+        developer tools. The report never claims a winner, because the guard reports facts rather
+        than resolving the cascade for you.
+      </p>
+    </div>
+
+    <section id="case-1" class="case">
+      <h2>
+        <span class="case-number">Case 1</span>
+        A custom function, resolved at every call site
+      </h2>
+      <p class="question">
+        A custom function has no value of its own. It has a result, and the result exists only where
+        the function is called, on the element that called it. Reading
+        <code>@function --case-1-step()</code> tells you the arithmetic, and tells you nothing about
+        the numbers, because the numbers arrive from the custom property each matched element
+        carries. This function is called from two properties in two rules, so it produces two call
+        sites, and one of those call sites matches three elements that disagree about the unit.
+      </p>
+      <div class="demo">
+        <div class="stack">
+          <div class="pair">
+            <span class="key">--case-1-unit: 8px</span>
+            <div class="case-1-bar case-1-unit-8"></div>
+          </div>
+          <div class="pair">
+            <span class="key">--case-1-unit: 12px</span>
+            <div class="case-1-bar case-1-unit-12"></div>
+          </div>
+          <div class="pair">
+            <span class="key">--case-1-unit: 16px</span>
+            <div class="case-1-bar case-1-unit-16"></div>
+          </div>
+        </div>
+        <p class="case-1-note">
+          The second call site is the padding on this paragraph, driven by a smaller unit.
+        </p>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-1] --case-1-step</code>, holding one collapsed
+        group per call site. Each call-site group names the destination property, the arguments as
+        authored, and the selector, and holds one table of the resolved property values, one row per
+        matched element.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>/* css-console: log label="case-1" */
+@function --case-1-step(--n) {
+  result: calc(var(--case-1-unit) * var(--n));
+}
+
+.case-1-unit-8 { --case-1-unit: 8px; }
+.case-1-unit-12 { --case-1-unit: 12px; }
+.case-1-unit-16 { --case-1-unit: 16px; }
+
+.case-1-bar {
+  inline-size: --case-1-step(3);
+}
+
+.case-1-note {
+  --case-1-unit: 6px;
+
+  padding-inline-start: --case-1-step(2);
+}</code></pre>
+    </section>
+
+    <section id="case-2" class="case">
+      <h2>
+        <span class="case-number">Case 2</span>
+        A color mix, resolved once per theme
+      </h2>
+      <p class="question">
+        The two declarations below are character for character identical, and they paint different
+        colors, because each one mixes a brand color its own section supplies. The authored value
+        names a mixing space, a percentage, and a variable, and the color you see is none of those
+        three: it is the result the engine computed in <code>oklch</code> and then serialized. The
+        report shows the mix as you wrote it and the concrete color it became.
+      </p>
+      <div class="demo pair">
+        <div class="case-2-panel case-2-warm">
+          <h3>Warm theme</h3>
+          <span class="case-2-chip"></span>
+        </div>
+        <div class="case-2-panel case-2-cool">
+          <h3>Cool theme</h3>
+          <span class="case-2-chip"></span>
+        </div>
+      </div>
+      <p class="watch">
+        In the console: two groups titled <code>[case-2]</code>, one per themed selector. Each holds
+        a single line carrying a color swatch, the authored <code>color-mix()</code>, and the
+        resolved color, and neither resolved color contains a variable or a mix function any more.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>.case-2-warm { --case-2-brand: oklch(0.68 0.18 45); }
+.case-2-cool { --case-2-brand: oklch(0.62 0.16 250); }
+
+/* css-console: log background-color label="case-2" */
+.case-2-warm .case-2-chip {
+  background-color: color-mix(in oklch, var(--case-2-brand) 60%, white);
+}
+
+/* css-console: log background-color label="case-2" */
+.case-2-cool .case-2-chip {
+  background-color: color-mix(in oklch, var(--case-2-brand) 60%, white);
+}</code></pre>
+    </section>
+
+    <section id="case-3" class="case">
+      <h2>
+        <span class="case-number">Case 3</span>
+        A container unit, resolved against its container
+      </h2>
+      <p class="question">
+        A <code>cqi</code> length is one percent of the inline size of the nearest query container,
+        so a single declaration has as many values as it has containers. The source names a
+        fraction, never a size, and the size belongs to an ancestor the declaration does not
+        mention. The two captions below share one rule and live in containers of different widths.
+      </p>
+      <div class="demo stack">
+        <div class="case-3-container case-3-wide">
+          <p class="case-3-caption">Wide container</p>
+        </div>
+        <div class="case-3-container case-3-narrow">
+          <p class="case-3-caption">Narrow container</p>
+        </div>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-3] .case-3-caption</code>, holding a table with
+        one row per caption. The authored column reads <code>6cqi</code> in both rows, and the
+        resolved column reads two different pixel values.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>.case-3-container {
+  container-type: inline-size;
+}
+
+.case-3-wide { inline-size: 32rem; }
+.case-3-narrow { inline-size: 14rem; }
+
+/* css-console: log font-size label="case-3" */
+.case-3-caption {
+  font-size: 6cqi;
+}</code></pre>
+    </section>
+
+    <section id="case-4" class="case">
+      <h2>
+        <span class="case-number">Case 4</span>
+        A clamp, at both bounds and between them
+      </h2>
+      <p class="question">
+        A <code>clamp()</code> has three regimes, and a declaration tells you which three values are
+        involved without telling you which regime any element is in. The fluid middle here is a
+        per-element custom property rather than a viewport length, so all three regimes are visible
+        at once, at any window size: the first bar is pinned at the lower bound, the second is
+        genuinely fluid, and the third is pinned at the upper bound.
+      </p>
+      <div class="demo stack">
+        <div class="pair">
+          <span class="key">--case-4-pull: 2rem</span>
+          <div class="case-4-bar case-4-pull-low"></div>
+        </div>
+        <div class="pair">
+          <span class="key">--case-4-pull: 13rem</span>
+          <div class="case-4-bar case-4-pull-mid"></div>
+        </div>
+        <div class="pair">
+          <span class="key">--case-4-pull: 40rem</span>
+          <div class="case-4-bar case-4-pull-high"></div>
+        </div>
+        <p class="demo-note">
+          The first bar and the third bar ignore their custom property entirely, which is the whole
+          point of a bound.
+        </p>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-4] .case-4-bar</code>, holding a table of three
+        rows. Every row repeats the same authored <code>clamp()</code>, and the resolved column
+        shows the lower bound, a value strictly between the bounds, and the upper bound.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>.case-4-pull-low { --case-4-pull: 2rem; }
+.case-4-pull-mid { --case-4-pull: 13rem; }
+.case-4-pull-high { --case-4-pull: 40rem; }
+
+/* css-console: log inline-size label="case-4" */
+.case-4-bar {
+  inline-size: clamp(6rem, var(--case-4-pull), 24rem);
+}</code></pre>
+    </section>
+
+    <section id="case-5" class="case">
+      <h2>
+        <span class="case-number">Case 5</span>
+        A custom property, at the end of its inheritance chain
+      </h2>
+      <p class="question">
+        The leaf declaration below reads <code>var(--case-5-tone)</code> and stops there. Which
+        declaration of <code>--case-5-tone</code> reached any particular leaf is a question about
+        the tree the leaf sits in, not about the rule, and a stylesheet that declares the property
+        in several places cannot answer it by inspection. Both leaves match the same rule, and only
+        one of them inherits the value declared halfway down.
+      </p>
+      <div class="demo case-5-root">
+        <p class="case-5-leaf">A leaf directly under the root, which declares the tone.</p>
+        <div class="case-5-branch">
+          <p class="case-5-leaf">A leaf under a branch, which declares the tone again.</p>
+        </div>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-5] .case-5-leaf</code>, holding a table with
+        one row per leaf. Both rows were authored as <code>var(--case-5-tone)</code>, and the
+        resolved colors differ, because the value that arrived differed.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>.case-5-root { --case-5-tone: oklch(0.55 0.15 250); }
+.case-5-branch { --case-5-tone: oklch(0.52 0.19 25); }
+
+/* css-console: log color label="case-5" */
+.case-5-leaf {
+  color: var(--case-5-tone);
+}</code></pre>
+    </section>
+
+    <section id="case-6" class="case">
+      <h2>
+        <span class="case-number">Case 6</span>
+        A pseudo-element sized by its generated content
+      </h2>
+      <p class="question">
+        A <code>::before</code> pseudo-element has no element in the document, so it cannot be
+        selected, inspected, or measured the way an element can. Its content comes from an
+        attribute, and its width follows from that content, which means the width lives in the
+        markup, in the font, and in the layout, and nowhere in the declaration. css-console reads
+        the pseudo-element directly and reports what it measured.
+      </p>
+      <div class="demo">
+        <span class="case-6-tag" data-tag="draft"></span>
+        <span class="case-6-tag" data-tag="needs review"></span>
+        <span class="case-6-tag" data-tag="ready to ship"></span>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-6] .case-6-tag::before</code>, holding a table
+        with one row per tag. The authored column reads <code>max-content</code> every time, and the
+        resolved widths grow with the label the attribute supplied.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>/* css-console: log width label="case-6" */
+.case-6-tag::before {
+  content: attr(data-tag);
+  width: max-content;
+}</code></pre>
+    </section>
+
+    <section id="case-7" class="case">
+      <h2>
+        <span class="case-number">Case 7</span>
+        A random value, behind a feature query
+      </h2>
+      <p class="question">
+        The <code>random()</code> function returns a value the source cannot state by definition,
+        and it is new enough that a browser may not implement it at all. The declaration is
+        therefore guarded by <code>@supports (width: random(1px, 2px))</code>. That guard is worth
+        watching for its own sake: css-console evaluates a rule's conditions against the live
+        engine, so where the feature query fails the group still opens, from the source, and reports
+        nothing, because nothing applied.
+      </p>
+      <div class="demo stack">
+        <div class="case-7-die"></div>
+        <div class="case-7-die"></div>
+        <div class="case-7-die"></div>
+        <p class="case-7-notice">
+          This browser does not support <code>random()</code>, so the guarded declaration never
+          applied, the bars above have no width of their own, and the console group for this case is
+          empty. That empty group is the report: the rule exists in the source, and this engine is
+          not using it.
+        </p>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-7] .case-7-die</code>. In an engine that
+        supports <code>random()</code> it holds one resolved width per bar. In an engine that does
+        not, it holds nothing at all.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>@supports (width: random(1px, 2px)) {
+  /* css-console: log width label="case-7" */
+  .case-7-die {
+    width: random(4rem, 12rem);
+  }
+}
+
+.case-7-notice { display: none; }
+
+@supports not (width: random(1px, 2px)) {
+  .case-7-notice { display: block; }
+}</code></pre>
+    </section>
+
+    <section id="case-8" class="case">
+      <h2>
+        <span class="case-number">Case 8</span>
+        A nested rule, and the selector it resolves to
+      </h2>
+      <p class="question">
+        CSS nesting substitutes the parent rule into the child through <code>:is()</code>, which
+        preserves matching behavior and specificity, and produces a selector no line of the source
+        contains. Two levels of nesting are enough for the resolved selector to stop resembling
+        anything you wrote. css-console resolves nesting before it matches, so the group title is
+        the selector the engine used rather than the spelling the stylesheet carries.
+      </p>
+      <div class="demo case-8-panel">
+        <div class="case-8-row">
+          <span class="case-8-dot"></span>
+          <span class="case-8-dot"></span>
+        </div>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-8]</code> whose selector is a nest of
+        <code>:is()</code> wrappers. Compare it to the three lines of source below, and note that
+        the title appears in neither.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>.case-8-panel {
+  .case-8-row {
+    /* css-console: log border-color label="case-8" */
+    .case-8-dot {
+      border-color: oklch(0.62 0.19 25);
+    }
+  }
+}</code></pre>
+    </section>
+
+    <section id="case-9" class="case">
+      <h2>
+        <span class="case-number">Case 9</span>
+        A shorthand competing with an annotated longhand
+      </h2>
+      <p class="question">
+        The rule below sets <code>margin-left</code>, and then sets <code>margin</code>, which sets
+        <code>margin-left</code> again. A report that showed only the annotated declaration and the
+        resolved value would be quietly misleading, because the resolved value did not come from the
+        annotated declaration. The guard exists for exactly this: it reports that the annotated
+        declaration may not be the sole contributor, names why, and hands you the live element. It
+        never names a winner, because deciding the cascade is the job of your developer tools.
+      </p>
+      <div class="demo">
+        <p class="case-9-card">
+          This card is annotated to report <code>margin-left: 3rem</code>, and it is sitting at a
+          margin of <code>0.5rem</code>.
+        </p>
+      </div>
+      <p class="watch">
+        In the console: one group titled <code>[case-9] .case-9-card</code>, holding a line that
+        ends in <code>(contested)</code>, followed by a handoff line reading
+        <code>contested (competing-declaration)</code> and the instruction to inspect the element.
+        The live element travels with that line, so clicking it in the console takes you to the box
+        the report is about.
+      </p>
+      <p class="source-title">The source</p>
+      <pre><code>/* css-console: log margin-left label="case-9" */
+.case-9-card {
+  margin-left: 3rem;
+  margin: 0.5rem;
+}</code></pre>
+    </section>
+  </body>
+</html>

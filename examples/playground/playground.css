@@ -1,0 +1,469 @@
+/*
+ * The playground stylesheet.
+ *
+ * Everything the playground page paints lives here, and that is deliberate.
+ * Source discovery reads the <style> and <link> elements of the document
+ * (src/browser/sources/index.ts), and the playground scans the whole document
+ * through the public facade, so keeping the entire stylesheet in one linked
+ * file makes the console report attributable to exactly one source.
+ *
+ * The page links this file with Vite's `?direct` query, because the
+ * development server answers a plain `.css` request with a JavaScript module
+ * wrapping the CSS, while `?direct` is answered with the stylesheet text
+ * itself. That is the same convention manual-testing-phase3.css documents and
+ * test/browser/linked-sources.test.ts pins.
+ *
+ * The file has two halves. The first half is the page chrome: typography,
+ * layout, and the styling of the demonstrations. It carries no css-console
+ * annotation at all, so it produces no probe, and every console group the
+ * page opens belongs to one of the nine cases. The second half is the nine
+ * annotated cases, each labeled `case-1` through `case-9`, following the
+ * annotation grammar in src/core/annotations/index.ts:
+ * `css-console: <log-level> [property-list] [label="..."]`.
+ */
+
+/* Page chrome. No annotation lives below this line, so the page chrome
+ * produces no probe. */
+
+:root {
+  --accent: #0757ba;
+  --bg: #fff;
+  --border: #d1d9e0;
+  --code-bg: #f0f2f5;
+  --fg: #1a1a1a;
+  --muted: #59636e;
+  --surface: #f6f8fa;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #4493f8;
+    --bg: #0d1117;
+    --border: #3d444d;
+    --code-bg: #1c2128;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --surface: #151b23;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 62rem;
+  padding: 3rem 1.25rem 6rem;
+}
+
+h1 {
+  font-size: clamp(1.9rem, 1.4rem + 1.6vw, 2.6rem);
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+
+h2 {
+  font-size: 1.4rem;
+  line-height: 1.25;
+  margin: 0 0 0.75rem;
+}
+
+h3 {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a {
+    transition: color 150ms ease;
+  }
+
+  a:hover {
+    color: var(--fg);
+  }
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.intro {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 3rem;
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.intro ol {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.intro li {
+  margin-bottom: 0.4rem;
+}
+
+.case {
+  border-top: 1px solid var(--border);
+  margin-bottom: 3.5rem;
+  padding-top: 2rem;
+}
+
+.case-number {
+  color: var(--muted);
+  display: block;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.question {
+  max-width: 60ch;
+}
+
+.watch {
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  margin: 1.25rem 0;
+  max-width: 60ch;
+  padding-left: 1rem;
+}
+
+.demo {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+}
+
+.demo-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+}
+
+code,
+pre,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, menlo, monospace;
+  font-size: 0.85em;
+}
+
+code {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 0;
+  overflow-x: auto;
+  padding: 1rem 1.25rem;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+.source-title {
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  margin: 1.5rem 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pair {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.key {
+  color: var(--muted);
+  flex: 0 0 14rem;
+  font-family: ui-monospace, SFMono-Regular, menlo, monospace;
+  font-size: 0.8rem;
+}
+
+/* Demonstration chrome. These rules size and paint the demonstration
+ * elements without touching any property a case annotates, so a reported
+ * value is never contested by the page's own styling. */
+
+.case-1-bar,
+.case-4-bar {
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 40%, white));
+  block-size: 1.25rem;
+  border-radius: 4px;
+}
+
+.case-2-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  flex: 1 1 16rem;
+  padding: 1rem;
+}
+
+.case-2-chip {
+  block-size: 4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: block;
+  inline-size: 100%;
+}
+
+.case-3-container {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  container-type: inline-size;
+  padding: 0.75rem;
+}
+
+.case-3-wide {
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+.case-3-narrow {
+  inline-size: 14rem;
+  max-inline-size: 100%;
+}
+
+.case-3-caption {
+  font-weight: 600;
+  margin: 0;
+}
+
+.case-5-branch {
+  border-left: 2px solid var(--border);
+  margin-top: 0.75rem;
+  padding-left: 1rem;
+}
+
+.case-6-tag {
+  display: inline-block;
+  margin-right: 0.75rem;
+}
+
+.case-6-tag::before {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, menlo, monospace;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.6rem;
+  text-align: center;
+}
+
+.case-7-die {
+  background: var(--accent);
+  block-size: 1.25rem;
+  border-radius: 4px;
+}
+
+.case-7-notice {
+  display: none;
+}
+
+@supports not (width: random(1px, 2px)) {
+  .case-7-notice {
+    background: var(--code-bg);
+    border-left: 3px solid var(--accent);
+    display: block;
+    padding: 0.75rem 1rem;
+  }
+}
+
+.case-8-dot {
+  block-size: 2rem;
+  border-radius: 999px;
+  border-style: solid;
+  border-width: 6px;
+  display: inline-block;
+  inline-size: 2rem;
+}
+
+.case-9-card {
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+/* The nine annotated cases. */
+
+/* Case 1. A custom function has no value of its own, so the only place a
+ * value exists is a call site. This one is called from two properties in two
+ * rules, and the elements it matches carry different values of the custom
+ * property that drives it. */
+
+/* css-console: log label="case-1" */
+@function --case-1-step(--n) {
+  result: calc(var(--case-1-unit) * var(--n));
+}
+
+.case-1-unit-8 {
+  --case-1-unit: 8px;
+}
+
+.case-1-unit-12 {
+  --case-1-unit: 12px;
+}
+
+.case-1-unit-16 {
+  --case-1-unit: 16px;
+}
+
+.case-1-bar {
+  inline-size: --case-1-step(3);
+}
+
+.case-1-note {
+  --case-1-unit: 6px;
+
+  padding-inline-start: --case-1-step(2);
+}
+
+/* Case 2. One declaration, written once per theme, mixed against a brand
+ * color the section above it sets. */
+
+.case-2-warm {
+  --case-2-brand: oklch(0.68 0.18 45);
+}
+
+.case-2-cool {
+  --case-2-brand: oklch(0.62 0.16 250);
+}
+
+/* css-console: log background-color label="case-2" */
+.case-2-warm .case-2-chip {
+  background-color: color-mix(in oklch, var(--case-2-brand) 60%, white);
+}
+
+/* css-console: log background-color label="case-2" */
+.case-2-cool .case-2-chip {
+  background-color: color-mix(in oklch, var(--case-2-brand) 60%, white);
+}
+
+/* Case 3. A container unit is a fraction of the query container, so one
+ * declaration resolves to as many values as there are containers. */
+
+/* css-console: log font-size label="case-3" */
+.case-3-caption {
+  font-size: 6cqi;
+}
+
+/* Case 4. One clamp, three elements, and a per-element custom property in
+ * the fluid middle, so the lower bound, the fluid regime, and the upper
+ * bound are all observable at one viewport size. */
+
+.case-4-pull-low {
+  --case-4-pull: 2rem;
+}
+
+.case-4-pull-mid {
+  --case-4-pull: 13rem;
+}
+
+.case-4-pull-high {
+  --case-4-pull: 40rem;
+}
+
+/* css-console: log inline-size label="case-4" */
+.case-4-bar {
+  inline-size: clamp(6rem, var(--case-4-pull), 24rem);
+}
+
+/* Case 5. A custom property is declared at the section root, declared again
+ * halfway down the tree, and consumed by the leaves. */
+
+.case-5-root {
+  --case-5-tone: oklch(0.55 0.15 250);
+}
+
+.case-5-branch {
+  --case-5-tone: oklch(0.52 0.19 25);
+}
+
+/* css-console: log color label="case-5" */
+.case-5-leaf {
+  color: var(--case-5-tone);
+}
+
+/* Case 6. Generated content has no element in the document, and its width
+ * follows from the text the engine generated. */
+
+/* css-console: log width label="case-6" */
+.case-6-tag::before {
+  content: attr(data-tag);
+  width: max-content;
+}
+
+/* Case 7. The declaration is guarded, so a browser without random() applies
+ * nothing and the console group opens empty. */
+
+@supports (width: random(1px, 2px)) {
+  /* css-console: log width label="case-7" */
+  .case-7-die {
+    width: random(4rem, 12rem);
+  }
+}
+
+/* Case 8. Two levels of nesting, and a resolved selector that is nowhere in
+ * the source. */
+
+.case-8-panel {
+  .case-8-row {
+    /* css-console: log border-color label="case-8" */
+    .case-8-dot {
+      border-color: oklch(0.62 0.19 25);
+    }
+  }
+}
+
+/* Case 9. An annotated longhand, and a shorthand after it that sets the same
+ * property again. */
+
+/* css-console: log margin-left label="case-9" */
+.case-9-card {
+  margin-left: 3rem;
+  margin: 0.5rem;
+}
