@@ -1,0 +1,13 @@
+/*
+ * A linked fixture for the Phase 3 manual testing document
+ * (manual-testing-phase3.html). The linked-stylesheet scenarios point a
+ * <link rel="stylesheet"> at this file with Vite's `?direct` query, because
+ * the dev server answers a plain `.css` request with a JavaScript module
+ * wrapping the CSS; `?direct` is answered with the stylesheet text itself,
+ * matching what the browser suite pins in test/browser/linked-sources.test.ts.
+ */
+
+/* css-console: log color label="linked" */
+.linked-probe {
+  color: rgb(20, 40, 60);
+}
