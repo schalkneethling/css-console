@@ -101,6 +101,8 @@ type Reported = {
 type Visit = {
   readonly entries: readonly Entry[];
   readonly pageErrors: readonly Error[];
+  readonly warnings: readonly string[];
+  readonly errors: readonly string[];
 };
 
 /**
@@ -150,13 +152,18 @@ async function tableRows(message: ConsoleMessage): Promise<readonly TableRow[] |
 /**
  * Opens the playground, waits for the scan to publish its completion state,
  * and returns every console message it rendered together with any uncaught
- * page error. Listeners are attached before navigation so that nothing
- * rendered during module evaluation is missed.
+ * page error, and with the console warnings and console errors it raised
+ * kept apart, read from `ConsoleMessage.type()`. Listeners are attached
+ * before navigation so that nothing rendered during module evaluation is
+ * missed, which is where a message raised while a dependency is being
+ * evaluated arrives.
  */
 async function openPlayground(page: Page): Promise<Visit> {
   const entries: Entry[] = [];
   const pending: Promise<void>[] = [];
   const pageErrors: Error[] = [];
+  const warnings: string[] = [];
+  const errors: string[] = [];
   const stack: string[] = [];
 
   page.on("pageerror", (error) => {
@@ -166,6 +173,12 @@ async function openPlayground(page: Page): Promise<Visit> {
   page.on("console", (message) => {
     const type = message.type();
     const path = [...stack];
+
+    if (type === "warning") {
+      warnings.push(message.text());
+    } else if (type === "error") {
+      errors.push(message.text());
+    }
 
     if (type === "startGroup" || type === "startGroupCollapsed") {
       stack.push(message.text());
@@ -192,7 +205,7 @@ async function openPlayground(page: Page): Promise<Visit> {
   await expect(page.locator("html")).toHaveAttribute("data-scan-state", "complete");
   await Promise.all(pending);
 
-  return { entries, pageErrors };
+  return { entries, pageErrors, warnings, errors };
 }
 
 /**
@@ -392,10 +405,33 @@ function pixels(value: string): number {
 }
 
 test.describe("the playground", () => {
-  test("loads without a page error and completes a scan", async ({ page }) => {
-    const { entries, pageErrors } = await openPlayground(page);
+  test("loads without a page error, a console error, or a console warning, and completes a scan", async ({
+    page,
+  }) => {
+    const { entries, pageErrors, warnings, errors } = await openPlayground(page);
 
     expect(pageErrors).toHaveLength(0);
+
+    // The playground is the reference page a reader opens with the console
+    // already visible, so the report it renders has to be the only thing in
+    // the console. A warning from anywhere — the page, the adapter, or a
+    // dependency the development server serves — is a defect to fix at its
+    // source rather than an entry to permit here, so nothing is allowed
+    // through and the message text is surfaced when one arrives. The same
+    // holds for `console.error()` messages, which `pageerror` does not
+    // cover: every annotation in `examples/playground/playground.css` uses
+    // the `log` level, and the adapter routes the `error` level through
+    // `output.error()` (`src/browser/console/index.ts`), so an error-typed
+    // console message can only be a defect.
+    //
+    // Suppressing a message is allowed only when the source that raises it
+    // has been read, the message is known to be suppressible, and the reason
+    // is recorded here next to the suppression. No such case exists today,
+    // so neither list is filtered, and nothing may be added to either
+    // assertion without that evidence.
+    expect(warnings, `the page raised console warnings:\n${warnings.join("\n")}`).toHaveLength(0);
+    expect(errors, `the page raised console errors:\n${errors.join("\n")}`).toHaveLength(0);
+
     await expect(page.locator("html")).toHaveAttribute("data-scan-state", "complete");
 
     const timer = entries.find((entry) => entry.type === "timeEnd");
