@@ -37,3 +37,4 @@ Files are numbered with a zero-padded four-digit prefix followed by a short slug
 | [0013](./0013-parser-selection-postcss.md)                         | Parser selection: PostCSS                                       |
 | [0014](./0014-structural-linting-with-ast-grep.md)                 | Structural linting with ast-grep                                |
 | [0015](./0015-property-expansion-data-source.md)                   | Property expansion data source: hand-authored, browser-verified |
+| [0016](./0016-live-probes-as-an-option-not-a-level.md)             | Live probes as an option, not a log level                       |
