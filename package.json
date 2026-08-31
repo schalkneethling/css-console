@@ -61,7 +61,8 @@
     "stylelint-order": "^8.1.1",
     "stylelint-plugin-use-baseline": "^1.4.4",
     "typescript": "^7.0.2",
-    "vite-plus": "^0.2.4"
+    "vite-plus": "^0.2.4",
+    "vitest": "4.1.10"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@0.2.5"
