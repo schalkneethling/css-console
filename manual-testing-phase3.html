@@ -1304,6 +1304,11 @@
           // leaks between scenarios; the steps inside one scenario share the
           // instance until they say otherwise.
           forceNextInstance = true;
+          // The stage may have been mutated directly (for example by Remove
+          // first fixture style) without changing the markup text, so the
+          // tracked markup is cleared here to force applyMarkupIfChanged to
+          // re-inject the stage even when reloading the same scenario.
+          appliedMarkup = null;
           document.getElementById("playground").scrollIntoView({ behavior: "smooth" });
         });
       }
