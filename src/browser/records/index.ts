@@ -172,7 +172,13 @@ function valueProbeStart(probe: CompiledValueProbe): ValueProbeStart {
   return start;
 }
 
-/** The probe-start payload of a function probe. */
+/**
+ * The probe-start payload of a function probe. `definition`, `callSiteCount`,
+ * and `definitionReferences` are compile-time facts already carried on the
+ * compiled probe, so they are threaded straight through rather than
+ * recomputed; see `FunctionProbeStart` in `src/core/records/index.ts` for why
+ * the start has to carry them.
+ */
 function functionProbeStart(probe: CompiledFunctionProbe): FunctionProbeStart {
   const start: FunctionProbeStart = {
     probeId: probe.probeId,
@@ -180,6 +186,9 @@ function functionProbeStart(probe: CompiledFunctionProbe): FunctionProbeStart {
     logLevel: probe.logLevel,
     functionName: probe.functionName,
     source: probe.annotation,
+    definition: probe.definition,
+    callSiteCount: probe.callSites.length,
+    definitionReferences: probe.definitionReferences,
   };
 
   if (probe.label !== undefined) {

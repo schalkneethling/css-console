@@ -118,6 +118,9 @@ const sampleFunctionProbeStart: FunctionProbeStart = {
   logLevel: "log",
   functionName: "--space",
   source: sampleLocation,
+  definition: sampleLocation,
+  callSiteCount: 1,
+  definitionReferences: [],
 };
 
 const sampleProbeSummary: ProbeSummary = {
